@@ -1,0 +1,8 @@
+{
+  "name": "SolvaPact — Financement & Négociation de Dettes",
+  "description": "Plateforme peer-to-peer de mise en relation pour le financement de besoins et l'apurement de dettes avec messagerie de négociation et accords sécurisés.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
