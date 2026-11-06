@@ -20,7 +20,7 @@ interface HelpViewProps {
 }
 
 export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab }) => {
-  const founderEmail = 'hugolaumonier@gmail.com';
+  const founderEmail = 'solvapact.vercel.app@gmail.com';
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

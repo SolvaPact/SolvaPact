@@ -21,7 +21,7 @@ interface FounderPayoutViewProps {
 
 export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
   signedThreads,
-  founderEmail = 'hugolaumonier@gmail.com',
+  founderEmail = 'solvapact.vercel.app@gmail.com',
 }) => {
   const [settings, setSettings] = useState<FounderSettings>(() => {
     const saved = localStorage.getItem('solvapact_founder_settings');

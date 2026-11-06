@@ -733,7 +733,7 @@ export default function App() {
         {activeTab === 'fondateur' && (
           <FounderPayoutView
             signedThreads={signedNegotiations}
-            founderEmail={currentUser?.email || 'hugolaumonier@gmail.com'}
+            founderEmail={currentUser?.email || 'solvapact.vercel.app@gmail.com'}
           />
         )}
 
@@ -778,7 +778,12 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900">SolvaPact</span>
             <span aria-hidden="true">·</span>
-            <span>Onglets Dette, Investissement & Autre sujet</span>
+            <button
+              onClick={() => setActiveTab('aide')}
+              className="text-slate-600 hover:text-slate-900 underline transition-colors"
+            >
+              Aide & Contact (solvapact.vercel.app@gmail.com)
+            </button>
             <span aria-hidden="true">·</span>
             <span className="text-amber-800 font-semibold">Commission 2%</span>
           </div>
@@ -788,7 +793,23 @@ export default function App() {
             <span aria-hidden="true">·</span>
             <span>Prêts & transactions sous seing privé</span>
             <span aria-hidden="true">·</span>
-            <span>Données confidentielles protégées</span>
+            <button
+              onClick={() => {
+                if (
+                  currentUser?.email === 'solvapact.vercel.app@gmail.com' ||
+                  currentUser?.email === 'hugolaumonier@gmail.com' ||
+                  currentUser?.name.toLowerCase().includes('hugo')
+                ) {
+                  setActiveTab('fondateur');
+                } else {
+                  requireAuth(() => setActiveTab('fondateur'));
+                }
+              }}
+              className="hover:text-slate-600 transition-colors"
+              title="Accès réservé au fondateur"
+            >
+              Accès Fondateur
+            </button>
           </div>
         </div>
       </footer>

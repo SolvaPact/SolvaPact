@@ -28,6 +28,12 @@ export const Header: React.FC<HeaderProps> = ({
   const investissementCount = dossiers.filter((d) => d.type === 'investissement').length;
   const autreCount = dossiers.filter((d) => d.type === 'autre').length;
 
+  const isFounder =
+    !!currentUser &&
+    (currentUser.email === 'solvapact.vercel.app@gmail.com' ||
+      currentUser.email === 'hugolaumonier@gmail.com' ||
+      currentUser.name.toLowerCase().includes('hugo'));
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -137,18 +143,20 @@ export const Header: React.FC<HeaderProps> = ({
               Mes dossiers
             </button>
 
-            {/* Espace Fondateur */}
-            <button
-              onClick={() => setActiveTab('fondateur')}
-              className={`hover:text-amber-800 transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 ${
-                activeTab === 'fondateur'
-                  ? 'text-amber-900 font-bold border-b-2 border-amber-800'
-                  : 'text-amber-700'
-              }`}
-            >
-              <Coins className="w-3.5 h-3.5" />
-              <span>Espace Fondateur (Mes 2%)</span>
-            </button>
+            {/* Espace Fondateur (Réservé au compte Fondateur / Administrateur) */}
+            {isFounder && (
+              <button
+                onClick={() => setActiveTab('fondateur')}
+                className={`hover:text-amber-800 transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 ${
+                  activeTab === 'fondateur'
+                    ? 'text-amber-900 font-bold border-b-2 border-amber-800'
+                    : 'text-amber-700'
+                }`}
+              >
+                <Coins className="w-3.5 h-3.5" />
+                <span>Espace Fondateur (Mes 2%)</span>
+              </button>
+            )}
 
             {/* Aide & Contact */}
             <button
