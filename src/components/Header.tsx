@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActiveTab, User, Dossier } from '../types';
-import { ShieldCheck, PlusCircle, LogOut, Coins } from 'lucide-react';
+import { ShieldCheck, PlusCircle, LogOut, Coins, HelpCircle } from 'lucide-react';
+import solvapactLogo from '../assets/images/solvapact_logo_1793983769514.jpg';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -31,16 +32,18 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-6 h-16">
-          {/* Zone 1: Wordmark */}
+          {/* Zone 1: Wordmark & Logo */}
           <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => setActiveTab('explorer')}
               className="text-left group flex items-center gap-2.5 focus:outline-none"
             >
-              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm tracking-wider">
-                SP
-              </div>
-              <span className="text-xl font-bold tracking-tight text-slate-900">
+              <img
+                src={solvapactLogo}
+                alt="Logo SolvaPact"
+                className="w-9 h-9 rounded-lg object-contain border border-slate-200/80 shadow-xs bg-white"
+              />
+              <span className="text-xl font-bold tracking-tight text-slate-900 group-hover:text-slate-700 transition-colors">
                 SolvaPact
               </span>
             </button>
@@ -146,6 +149,19 @@ export const Header: React.FC<HeaderProps> = ({
               <Coins className="w-3.5 h-3.5" />
               <span>Espace Fondateur (Mes 2%)</span>
             </button>
+
+            {/* Aide & Contact */}
+            <button
+              onClick={() => setActiveTab('aide')}
+              className={`hover:text-blue-900 transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 ${
+                activeTab === 'aide'
+                  ? 'text-blue-900 font-bold border-b-2 border-blue-900'
+                  : 'text-slate-600'
+              }`}
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Aide</span>
+            </button>
           </nav>
 
           {/* Zone 3: Primary Action + Auth */}
@@ -214,6 +230,12 @@ export const Header: React.FC<HeaderProps> = ({
           className={`py-1 px-2 ${activeTab === 'negociations' ? 'font-bold text-slate-900' : 'text-slate-600'}`}
         >
           Négos ({activeNegotiationCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('aide')}
+          className={`py-1 px-2 ${activeTab === 'aide' ? 'font-bold text-blue-900 border-b-2 border-blue-900' : 'text-slate-600'}`}
+        >
+          Aide
         </button>
       </div>
     </header>

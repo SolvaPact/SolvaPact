@@ -129,4 +129,5 @@ export type ActiveTab =
   | 'mes_dossiers'
   | 'negociations'
   | 'simulateur'
-  | 'fondateur';
+  | 'fondateur'
+  | 'aide';

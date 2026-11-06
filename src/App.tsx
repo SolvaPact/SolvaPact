@@ -11,6 +11,7 @@ import { ContractModal } from './components/ContractModal';
 import { FinanceCalculator } from './components/FinanceCalculatorModal';
 import { AuthModal } from './components/AuthModal';
 import { FounderPayoutView } from './components/FounderPayoutView';
+import { HelpView } from './components/HelpView';
 import { formatEuro } from './utils/finance';
 import {
   Search,
@@ -734,6 +735,11 @@ export default function App() {
             signedThreads={signedNegotiations}
             founderEmail={currentUser?.email || 'hugolaumonier@gmail.com'}
           />
+        )}
+
+        {/* VIEW: CENTRE D'AIDE & CONTACT */}
+        {activeTab === 'aide' && (
+          <HelpView onNavigateToTab={setActiveTab} />
         )}
       </main>
 
