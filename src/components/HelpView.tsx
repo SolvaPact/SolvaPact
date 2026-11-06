@@ -48,7 +48,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab }) => {
     };
 
     const subjectLine = `[Support SolvaPact] ${subjectMap[subject] || 'Demande d’aide'}`;
-    const bodyContent = `Bonjour Hugo,\n\nNom: ${name}\nEmail: ${email}\nSujet: ${subjectMap[subject] || subject}\n\nMessage:\n${message}\n\n---\nEnvoyé depuis le centre d'aide SolvaPact`;
+    const bodyContent = `Bonjour l'équipe SolvaPact,\n\nNom: ${name}\nEmail: ${email}\nSujet: ${subjectMap[subject] || subject}\n\nMessage:\n${message}\n\n---\nEnvoyé depuis le centre d'aide SolvaPact`;
 
     const mailtoUrl = `mailto:${founderEmail}?subject=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(bodyContent)}`;
     window.location.href = mailtoUrl;
@@ -68,7 +68,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab }) => {
           Besoin d'aide ou d'assistance sur SolvaPact ?
         </h1>
         <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto">
-          Une question sur un dossier, un accord sous seing privé ou un blocage technique ? Contactez directement l'administrateur de la plateforme pour une prise en charge rapide.
+          Une question sur un dossier, un accord sous seing privé ou un blocage technique ? Contactez directement l'équipe de la plateforme pour une prise en charge rapide.
         </p>
       </div>
 
@@ -85,14 +85,14 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab }) => {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wider text-slate-300 font-semibold">
-                  Support Fondateur
+                  Support & Contact
                 </p>
-                <h3 className="text-lg font-bold text-white">Hugo Laumonier</h3>
+                <h3 className="text-lg font-bold text-white">Équipe SolvaPact</h3>
               </div>
             </div>
 
             <p className="text-sm text-slate-300 leading-relaxed mb-6">
-              Je réponds personnellement à toutes vos demandes pour vous assister dans vos démarches, l'apurement de vos dettes ou vos négociations.
+              Notre équipe répond à toutes vos demandes pour vous assister dans vos démarches, l'apurement de vos dettes ou vos négociations.
             </p>
 
             {/* Email Box */}
@@ -210,7 +210,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab }) => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Hugo Laumonier"
+                    placeholder="Ex: Thomas Martin"
                     className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
@@ -265,7 +265,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab }) => {
                 className="w-full py-3 px-5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
               >
                 <Send className="w-4 h-4" />
-                <span>Transmettre mon message à Hugo Laumonier</span>
+                <span>Transmettre mon message à l'équipe SolvaPact</span>
               </button>
             </form>
           )}

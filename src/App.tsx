@@ -396,31 +396,6 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Transparent 2% Commission Notice Bar */}
-      <div className="bg-slate-900 text-white text-xs py-2 px-4 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Coins className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>
-              <strong>Commissions transparentes :</strong> <strong>1,2 %</strong> sur les règlements de dettes et <strong>2,0 %</strong> sur les investissements et autres sujets.
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-[11px] text-slate-300">
-            <span>Commissions encaissées :</span>
-            <button
-              onClick={() => setActiveTab('fondateur')}
-              className="font-bold text-amber-400 hover:text-amber-300 underline font-mono text-xs tabular-nums flex items-center gap-1"
-            >
-              <span>{formatEuro(totalCommissionsEarned)}</span>
-              <span className="text-[10px] no-underline font-sans text-slate-400">
-                (Gérer mes versements & IBAN →)
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content Viewport */}
       <main className="flex-1">
         {/* VIEW: EXPLORER / DETTE / INVESTISSEMENT / AUTRE */}
@@ -793,23 +768,7 @@ export default function App() {
             <span aria-hidden="true">·</span>
             <span>Prêts & transactions sous seing privé</span>
             <span aria-hidden="true">·</span>
-            <button
-              onClick={() => {
-                if (
-                  currentUser?.email === 'solvapact.vercel.app@gmail.com' ||
-                  currentUser?.email === 'hugolaumonier@gmail.com' ||
-                  currentUser?.name.toLowerCase().includes('hugo')
-                ) {
-                  setActiveTab('fondateur');
-                } else {
-                  requireAuth(() => setActiveTab('fondateur'));
-                }
-              }}
-              className="hover:text-slate-600 transition-colors"
-              title="Accès réservé au fondateur"
-            >
-              Accès Fondateur
-            </button>
+            <span>Confidentialité & Sécurité</span>
           </div>
         </div>
       </footer>

@@ -33,11 +33,11 @@ export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
       }
     }
     return {
-      founderName: 'Hugo Laumonier',
+      founderName: 'Direction SolvaPact',
       founderEmail: founderEmail,
-      founderIban: 'FR76 3000 4000 5000 6000 7000 123',
+      founderIban: '',
       payoutProvider: 'Stripe Connect',
-      autoPayoutEnabled: true,
+      autoPayoutEnabled: false,
     };
   });
 

@@ -29,10 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   const autreCount = dossiers.filter((d) => d.type === 'autre').length;
 
   const isFounder =
-    !!currentUser &&
-    (currentUser.email === 'solvapact.vercel.app@gmail.com' ||
-      currentUser.email === 'hugolaumonier@gmail.com' ||
-      currentUser.name.toLowerCase().includes('hugo'));
+    !!currentUser && currentUser.email === 'solvapact.vercel.app@gmail.com';
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
