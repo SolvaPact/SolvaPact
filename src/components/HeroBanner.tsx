@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowRight, ShieldCheck, Scale, HandCoins } from 'lucide-react';
+import heroImage from '../assets/images/fin_hero_collaboration_1793977326033.jpg';
 
 interface HeroBannerProps {
   onExplore: () => void;
@@ -88,7 +89,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           <div className="lg:col-span-5">
             <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50">
               <img
-                src="/src/assets/images/fin_hero_collaboration_1793977326033.jpg"
+                src={heroImage}
                 alt="Négociation financière et signature d'accord amiable"
                 className="w-full h-80 sm:h-96 object-cover"
                 referrerPolicy="no-referrer"
