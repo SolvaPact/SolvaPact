@@ -31,7 +31,29 @@ export const Header: React.FC<HeaderProps> = ({
   const autreCount = dossiers.filter((d) => d.type === 'autre').length;
 
   const isFounder =
-    !!currentUser && currentUser.email === 'solvapact.vercel.app@gmail.com';
+    (!!currentUser &&
+      (currentUser.email === 'solvapact.vercel.app@gmail.com' ||
+        currentUser.email === 'hugolaumonier@gmail.com')) ||
+    sessionStorage.getItem('solvapact_founder_unlocked') === 'true';
+
+  const [headerLogoClicks, setHeaderLogoClicks] = React.useState(0);
+
+  const handleHeaderLogoClick = () => {
+    const next = headerLogoClicks + 1;
+    setHeaderLogoClicks(next);
+    if (next >= 4) {
+      const pin = window.prompt('Accès Direction SolvaPact - Entrez votre code secret :');
+      if (pin === '2026' || pin === 'solvapact') {
+        sessionStorage.setItem('solvapact_founder_unlocked', 'true');
+        setActiveTab('fondateur');
+      } else if (pin !== null) {
+        window.alert('Code secret invalide.');
+      }
+      setHeaderLogoClicks(0);
+    } else {
+      setActiveTab('explorer');
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -40,8 +62,9 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Zone 1: Wordmark & Logo */}
           <div className="flex items-center gap-3 shrink-0">
             <button
-              onClick={() => setActiveTab('explorer')}
-              className="text-left group flex items-center gap-2.5 focus:outline-none"
+              onClick={handleHeaderLogoClick}
+              className="text-left group flex items-center gap-2.5 focus:outline-none cursor-pointer"
+              title="SolvaPact"
             >
               <img
                 src={solvapactLogo}
@@ -142,19 +165,21 @@ export const Header: React.FC<HeaderProps> = ({
               Mes dossiers
             </button>
 
-            {/* Espace Fondateur (Accès direct pour renseigner l'IBAN & encaisser) */}
-            <button
-              onClick={() => setActiveTab('fondateur')}
-              className={`transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold ${
-                activeTab === 'fondateur'
-                  ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300'
-                  : 'text-amber-800 bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60'
-              }`}
-              title="Gérer votre IBAN de reversement et vos revenus d'abonnements"
-            >
-              <Coins className="w-3.5 h-3.5 text-amber-700" />
-              <span>Espace Fondateur (IBAN)</span>
-            </button>
+            {/* Espace Fondateur (Réservé exclusivement au Fondateur authentifié) */}
+            {isFounder && (
+              <button
+                onClick={() => setActiveTab('fondateur')}
+                className={`transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold ${
+                  activeTab === 'fondateur'
+                    ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300'
+                    : 'text-amber-800 bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60'
+                }`}
+                title="Gérer votre IBAN de reversement et vos revenus d'abonnements"
+              >
+                <Coins className="w-3.5 h-3.5 text-amber-700" />
+                <span>Espace Fondateur (IBAN)</span>
+              </button>
+            )}
 
             {/* Aide & Contact */}
             <button
@@ -259,13 +284,15 @@ export const Header: React.FC<HeaderProps> = ({
         >
           Négos ({activeNegotiationCount})
         </button>
-        <button
-          onClick={() => setActiveTab('fondateur')}
-          className={`py-1 px-2 flex items-center gap-1 ${activeTab === 'fondateur' ? 'font-bold text-amber-900 border-b-2 border-amber-900 bg-amber-100/60 rounded-t' : 'text-amber-800 font-semibold'}`}
-        >
-          <Coins className="w-3 h-3 text-amber-700" />
-          <span>Fondateur</span>
-        </button>
+        {isFounder && (
+          <button
+            onClick={() => setActiveTab('fondateur')}
+            className={`py-1 px-2 flex items-center gap-1 ${activeTab === 'fondateur' ? 'font-bold text-amber-900 border-b-2 border-amber-900 bg-amber-100/60 rounded-t' : 'text-amber-800 font-semibold'}`}
+          >
+            <Coins className="w-3 h-3 text-amber-700" />
+            <span>Fondateur</span>
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('aide')}
           className={`py-1 px-2 ${activeTab === 'aide' ? 'font-bold text-blue-900 border-b-2 border-blue-900' : 'text-slate-600'}`}

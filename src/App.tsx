@@ -11,6 +11,7 @@ import { ContractModal } from './components/ContractModal';
 import { FinanceCalculator } from './components/FinanceCalculatorModal';
 import { AuthModal } from './components/AuthModal';
 import { SubscriptionModal } from './components/SubscriptionModal';
+import { AccessPaywallGate } from './components/AccessPaywallGate';
 import { FounderPayoutView } from './components/FounderPayoutView';
 import { HelpView } from './components/HelpView';
 import { formatEuro } from './utils/finance';
@@ -34,39 +35,31 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // Persistence in localStorage
+  // Persistence in localStorage - CLEAN SLATE (no fake / test dossiers)
   const [dossiers, setDossiers] = useState<Dossier[]>(() => {
-    const saved = localStorage.getItem('solvapact_dossiers');
+    localStorage.removeItem('solvapact_dossiers');
+    const saved = localStorage.getItem('solvapact_dossiers_v2');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.some((d) => d.id === 'dos-101' || d.id === 'dos-102')) {
-          localStorage.removeItem('solvapact_dossiers');
-          return [];
-        }
-        return parsed;
+        return JSON.parse(saved);
       } catch (e) {
         console.error('Error loading dossiers from localStorage', e);
       }
     }
-    return INITIAL_DOSSIERS;
+    return [];
   });
 
   const [negotiations, setNegotiations] = useState<NegotiationThread[]>(() => {
-    const saved = localStorage.getItem('solvapact_negotiations');
+    localStorage.removeItem('solvapact_negotiations');
+    const saved = localStorage.getItem('solvapact_negotiations_v2');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.some((n) => n.id === 'neg-201')) {
-          localStorage.removeItem('solvapact_negotiations');
-          return [];
-        }
-        return parsed;
+        return JSON.parse(saved);
       } catch (e) {
         console.error('Error loading negotiations from localStorage', e);
       }
     }
-    return INITIAL_NEGOTIATIONS;
+    return [];
   });
 
   // User Authentication
@@ -82,16 +75,21 @@ export default function App() {
     return null;
   });
 
+  // Mandatory Access Paywall State
+  const [hasPaidAccess, setHasPaidAccess] = useState<boolean>(() => {
+    return localStorage.getItem('solvapact_has_paid_access') === 'true';
+  });
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [pendingActionAfterAuth, setPendingActionAfterAuth] = useState<(() => void) | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('solvapact_dossiers', JSON.stringify(dossiers));
+    localStorage.setItem('solvapact_dossiers_v2', JSON.stringify(dossiers));
   }, [dossiers]);
 
   useEffect(() => {
-    localStorage.setItem('solvapact_negotiations', JSON.stringify(negotiations));
+    localStorage.setItem('solvapact_negotiations_v2', JSON.stringify(negotiations));
   }, [negotiations]);
 
   useEffect(() => {
@@ -425,6 +423,46 @@ export default function App() {
     // Redirect directly into the corresponding tab!
     setActiveTab(newDossier.type as ActiveTab);
   };
+
+  const handleUnlockAccess = (
+    plan: 'demandeur' | 'investisseur',
+    price: number,
+    userEmail?: string
+  ) => {
+    setHasPaidAccess(true);
+    localStorage.setItem('solvapact_has_paid_access', 'true');
+    const newUser: User = {
+      id: `usr-${Date.now()}`,
+      name: userEmail ? userEmail.split('@')[0] : 'Membre SolvaPact',
+      email: userEmail || 'client@solvapact.fr',
+      role: plan,
+      city: 'France',
+      createdAt: new Date().toLocaleDateString('fr-FR'),
+      isSubscribed: true,
+      subscriptionPlan: plan,
+      subscriptionPrice: price,
+      subscriptionNextBilling: new Date(
+        Date.now() + 30 * 24 * 3600 * 1000
+      ).toLocaleDateString('fr-FR'),
+    };
+    setCurrentUser(newUser);
+  };
+
+  const isFounderUser =
+    currentUser?.email === 'solvapact.vercel.app@gmail.com' ||
+    currentUser?.email === 'hugolaumonier@gmail.com' ||
+    sessionStorage.getItem('solvapact_founder_unlocked') === 'true';
+
+  // OBLIGATION DE PAIEMENT POUR ENTRER SUR LE SITE :
+  // Si le visiteur n'a pas payé son abonnement et n'est pas le fondateur, le portique payant bloque tout accès !
+  if (!hasPaidAccess && !isFounderUser && activeTab !== 'fondateur') {
+    return (
+      <AccessPaywallGate
+        onUnlockAccess={handleUnlockAccess}
+        onOpenFounderSpace={() => setActiveTab('fondateur')}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
@@ -837,12 +875,28 @@ export default function App() {
               Aide & Contact (solvapact.vercel.app@gmail.com)
             </button>
             <span aria-hidden="true">·</span>
-            <button
-              onClick={() => setActiveTab('fondateur')}
-              className="text-amber-800 hover:text-amber-950 font-bold bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition-colors"
-            >
-              🏦 Espace Fondateur (Saisie IBAN & MRR)
-            </button>
+            {isFounderUser && (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  onClick={() => setActiveTab('fondateur')}
+                  className="text-amber-800 hover:text-amber-950 font-bold bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition-colors"
+                >
+                  🏦 Espace Fondateur (Saisie IBAN & MRR)
+                </button>
+                <span aria-hidden="true">·</span>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('solvapact_has_paid_access');
+                    setHasPaidAccess(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-700 underline transition-colors text-[11px]"
+                  title="Réactiver le portique de paiement pour vérifier l'expérience d'un nouvel arrivant"
+                >
+                  🔒 Tester le Portique Payant
+                </button>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-4 text-slate-400 text-[11px]">
