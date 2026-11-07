@@ -59,6 +59,10 @@ export interface User {
   phone?: string;
   reasonForJoining?: string;
   createdAt: string;
+  isSubscribed?: boolean;
+  subscriptionPlan?: 'demandeur' | 'investisseur';
+  subscriptionPrice?: number;
+  subscriptionNextBilling?: string;
 }
 
 export interface Offer {
@@ -100,6 +104,9 @@ export interface NegotiationThread {
   messages: ChatMessage[];
   status: 'active' | 'agreement_signed' | 'closed';
   updatedAt: string;
+  disbursementStatus?: 'en_attente_reglement' | 'fonds_liberes' | 'quittance_validee';
+  disbursementMethod?: 'carte_bancaire' | 'virement_sepa';
+  disbursementDate?: string;
 }
 
 export interface PayoutTransaction {
@@ -117,8 +124,10 @@ export interface FounderSettings {
   founderName: string;
   founderEmail: string;
   founderIban: string;
-  payoutProvider: 'Stripe Connect' | 'Lemonway' | 'Mangopay';
+  payoutProvider: 'Stripe Connect' | 'Lemonway' | 'Mangopay' | 'Virement SEPA Direct';
   autoPayoutEnabled: boolean;
+  totalSubscribers?: number;
+  monthlyRevenue?: number;
 }
 
 export type ActiveTab =

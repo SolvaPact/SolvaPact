@@ -13,6 +13,10 @@ import {
   Sparkles,
   ChevronRight,
   Clock,
+  CreditCard,
+  Banknote,
+  Lock,
+  Trash2,
 } from 'lucide-react';
 
 interface NegotiationRoomProps {
@@ -24,6 +28,7 @@ interface NegotiationRoomProps {
   onAcceptOffer: (threadId: string) => void;
   onViewContract: (thread: NegotiationThread) => void;
   currentUserRole: 'investisseur' | 'demandeur';
+  onDeleteThread?: (threadId: string) => void;
 }
 
 export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
@@ -35,12 +40,26 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
   onAcceptOffer,
   onViewContract,
   currentUserRole,
+  onDeleteThread,
 }) => {
   const activeThread =
     threads.find((t) => t.id === activeThreadId) || threads[0] || null;
 
   const [messageInput, setMessageInput] = useState('');
   const [showCounterModal, setShowCounterModal] = useState(false);
+  const [disbursementMethod, setDisbursementMethod] = useState<'carte' | 'virement'>('carte');
+  const [isDisbursing, setIsDisbursing] = useState(false);
+  const [disbursedSuccess, setDisbursedSuccess] = useState(
+    activeThread?.disbursementStatus === 'fonds_liberes' || false
+  );
+
+  const handleExecuteDisbursement = () => {
+    setIsDisbursing(true);
+    setTimeout(() => {
+      setIsDisbursing(false);
+      setDisbursedSuccess(true);
+    }, 1200);
+  };
 
   // Counter offer state
   const [counterAmount, setCounterAmount] = useState<number>(
@@ -231,6 +250,21 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                 </button>
               </div>
             )}
+
+            {onDeleteThread && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Voulez-vous supprimer ce fil de négociation de test ?')) {
+                    onDeleteThread(activeThread.id);
+                  }
+                }}
+                title="Supprimer ce fil de discussion"
+                className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -341,21 +375,168 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
           })}
 
           {isSigned && (
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center my-3">
-              <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
-              <h4 className="text-sm font-bold text-emerald-950">
-                Protocole d'accord validé et signé
-              </h4>
-              <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
-                Les deux parties ont formellement validé les conditions financières. L'acte sous seing privé et le tableau d'amortissement sont disponibles au téléchargement.
-              </p>
-              <button
-                onClick={() => onViewContract(activeThread)}
-                className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition-colors"
-              >
-                <FileSignature className="w-4 h-4" />
-                <span>Ouvrir l'acte juridique officiel</span>
-              </button>
+            <div className="space-y-4 my-3">
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
+                <h4 className="text-sm font-bold text-emerald-950">
+                  Protocole d'accord validé et signé
+                </h4>
+                <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
+                  Les deux parties ont formellement validé les conditions financières. L'acte sous seing privé et le tableau d'amortissement sont disponibles au téléchargement.
+                </p>
+                <button
+                  onClick={() => onViewContract(activeThread)}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition-colors"
+                >
+                  <FileSignature className="w-4 h-4" />
+                  <span>Ouvrir l'acte juridique officiel</span>
+                </button>
+              </div>
+
+              {/* Module de Déblocage & Règlement des Fonds */}
+              <div className="p-5 rounded-2xl bg-white border-2 border-emerald-600/70 shadow-sm text-left space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-emerald-700" />
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Règlement & Déblocage des fonds de l'accord
+                    </h4>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                    Montant de l'accord : {formatEuro(activeThread.currentOffer.proposedAmount)}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Le protocole d'accord juridique est formellement signé. Procédez maintenant au déblocage de la somme pour exécuter la transaction.
+                </p>
+
+                {disbursedSuccess ? (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-xs text-emerald-950">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Fonds débloqués & Règlement validé avec succès !</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Le versement de {formatEuro(activeThread.currentOffer.proposedAmount)} a été confirmé. Une quittance libératoire certifiée conforme au Code Civil a été enregistrée au registre d'accords.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Method selector */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setDisbursementMethod('carte')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors ${
+                          disbursementMethod === 'carte'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Régler par Carte Bancaire</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDisbursementMethod('virement')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors ${
+                          disbursementMethod === 'virement'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Banknote className="w-3.5 h-3.5" />
+                        <span>Virement Bancaire SEPA Direct</span>
+                      </button>
+                    </div>
+
+                    {disbursementMethod === 'carte' ? (
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Numéro de carte bancaire
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="4970 •••• •••• ••••"
+                              defaultValue="4970 8123 9044 5122"
+                              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Expiration
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="MM/AA"
+                                defaultValue="11/28"
+                                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                CVC
+                              </label>
+                              <input
+                                type="password"
+                                maxLength={4}
+                                placeholder="•••"
+                                defaultValue="378"
+                                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleExecuteDisbursement}
+                          disabled={isDisbursing}
+                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs disabled:opacity-50"
+                        >
+                          {isDisbursing ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                              <span>Validation du règlement en cours...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-3.5 h-3.5" />
+                              <span>Débloquer et verser {formatEuro(activeThread.currentOffer.proposedAmount)}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                        <div className="space-y-1.5 text-[11px]">
+                          <p className="text-slate-500">Coordonnées de virement du bénéficiaire :</p>
+                          <p className="font-mono font-bold text-slate-900 bg-white p-2 rounded border border-slate-200">
+                            IBAN : FR76 1005 7820 4401 9823 4567 890
+                          </p>
+                          <p className="text-slate-500">
+                            Bénéficiaire : <strong>{activeThread.applicantName}</strong> · Référence obligatoire : <strong>SP-{activeThread.id.toUpperCase()}</strong>
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleExecuteDisbursement}
+                          disabled={isDisbursing}
+                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Confirmer l'émission du virement bancaire</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

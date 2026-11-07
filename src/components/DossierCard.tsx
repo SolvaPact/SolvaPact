@@ -1,18 +1,20 @@
 import React from 'react';
 import { Dossier } from '../types';
 import { formatEuro, formatPct } from '../utils/finance';
-import { ShieldCheck, MessageSquare, ArrowRight, Clock, FileText } from 'lucide-react';
+import { ShieldCheck, MessageSquare, ArrowRight, Clock, FileText, Trash2 } from 'lucide-react';
 
 interface DossierCardProps {
   dossier: Dossier;
   onSelect: (dossier: Dossier) => void;
   onStartNegotiation: (dossier: Dossier) => void;
+  onDelete?: (dossierId: string) => void;
 }
 
 export const DossierCard: React.FC<DossierCardProps> = ({
   dossier,
   onSelect,
   onStartNegotiation,
+  onDelete,
 }) => {
   const isDebt = dossier.type === 'dette';
   const isInvest = dossier.type === 'investissement';
@@ -45,9 +47,26 @@ export const DossierCard: React.FC<DossierCardProps> = ({
             <span>{dossier.applicant.city}</span>
           </div>
 
-          <div className="flex items-center gap-1 text-slate-400">
-            <Clock className="w-3 h-3" />
-            <span>{dossier.createdAt}</span>
+          <div className="flex items-center gap-2 text-slate-400">
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              <span>{dossier.createdAt}</span>
+            </div>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm('Voulez-vous supprimer ce dossier de test ?')) {
+                    onDelete(dossier.id);
+                  }
+                }}
+                title="Supprimer ce dossier"
+                className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

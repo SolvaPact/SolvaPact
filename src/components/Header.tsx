@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveTab, User, Dossier } from '../types';
-import { ShieldCheck, PlusCircle, LogOut, Coins, HelpCircle } from 'lucide-react';
+import { ShieldCheck, PlusCircle, LogOut, Coins, HelpCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import solvapactLogo from '../assets/images/solvapact_logo_1793983769514.jpg';
 
 interface HeaderProps {
@@ -12,6 +12,7 @@ interface HeaderProps {
   currentUser: User | null;
   onOpenAuth: () => void;
   onLogout: () => void;
+  onOpenSubscription: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenAuth,
   onLogout,
+  onOpenSubscription,
 }) => {
   const detteCount = dossiers.filter((d) => d.type === 'dette').length;
   const investissementCount = dossiers.filter((d) => d.type === 'investissement').length;
@@ -140,20 +142,19 @@ export const Header: React.FC<HeaderProps> = ({
               Mes dossiers
             </button>
 
-            {/* Espace Fondateur (Réservé au compte Fondateur / Administrateur) */}
-            {isFounder && (
-              <button
-                onClick={() => setActiveTab('fondateur')}
-                className={`hover:text-amber-800 transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 ${
-                  activeTab === 'fondateur'
-                    ? 'text-amber-900 font-bold border-b-2 border-amber-800'
-                    : 'text-amber-700'
-                }`}
-              >
-                <Coins className="w-3.5 h-3.5" />
-                <span>Espace Fondateur (Mes 2%)</span>
-              </button>
-            )}
+            {/* Espace Fondateur (Accès direct pour renseigner l'IBAN & encaisser) */}
+            <button
+              onClick={() => setActiveTab('fondateur')}
+              className={`transition-colors whitespace-nowrap shrink-0 py-1 flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold ${
+                activeTab === 'fondateur'
+                  ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300'
+                  : 'text-amber-800 bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/60'
+              }`}
+              title="Gérer votre IBAN de reversement et vos revenus d'abonnements"
+            >
+              <Coins className="w-3.5 h-3.5 text-amber-700" />
+              <span>Espace Fondateur (IBAN)</span>
+            </button>
 
             {/* Aide & Contact */}
             <button
@@ -198,6 +199,28 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {/* Bouton d'Abonnement Pass SolvaPact */}
+            <button
+              onClick={onOpenSubscription}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-2xs ${
+                currentUser?.isSubscribed
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700'
+              }`}
+            >
+              {currentUser?.isSubscribed ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Pass Actif</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-white" />
+                  <span>Pass SolvaPact</span>
+                </>
+              )}
+            </button>
+
             {/* Primary Action Button */}
             <button
               onClick={onOpenDeposit}
@@ -235,6 +258,13 @@ export const Header: React.FC<HeaderProps> = ({
           className={`py-1 px-2 ${activeTab === 'negociations' ? 'font-bold text-slate-900' : 'text-slate-600'}`}
         >
           Négos ({activeNegotiationCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('fondateur')}
+          className={`py-1 px-2 flex items-center gap-1 ${activeTab === 'fondateur' ? 'font-bold text-amber-900 border-b-2 border-amber-900 bg-amber-100/60 rounded-t' : 'text-amber-800 font-semibold'}`}
+        >
+          <Coins className="w-3 h-3 text-amber-700" />
+          <span>Fondateur</span>
         </button>
         <button
           onClick={() => setActiveTab('aide')}

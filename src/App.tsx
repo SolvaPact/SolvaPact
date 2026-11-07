@@ -10,6 +10,7 @@ import { NegotiationRoom } from './components/NegotiationRoom';
 import { ContractModal } from './components/ContractModal';
 import { FinanceCalculator } from './components/FinanceCalculatorModal';
 import { AuthModal } from './components/AuthModal';
+import { SubscriptionModal } from './components/SubscriptionModal';
 import { FounderPayoutView } from './components/FounderPayoutView';
 import { HelpView } from './components/HelpView';
 import { formatEuro } from './utils/finance';
@@ -29,6 +30,7 @@ import {
   Banknote,
   PiggyBank,
   FolderOpen,
+  Trash2,
 } from 'lucide-react';
 
 export default function App() {
@@ -81,6 +83,7 @@ export default function App() {
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [pendingActionAfterAuth, setPendingActionAfterAuth] = useState<(() => void) | null>(null);
 
   useEffect(() => {
@@ -182,9 +185,50 @@ export default function App() {
 
   const handleAuthSuccess = (user: User) => {
     setCurrentUser(user);
+    if (!user.isSubscribed) {
+      setIsSubscriptionModalOpen(true);
+    }
     if (pendingActionAfterAuth) {
       pendingActionAfterAuth();
       setPendingActionAfterAuth(null);
+    }
+  };
+
+  const handleSubscriptionSuccess = (plan: 'demandeur' | 'investisseur', price: number) => {
+    if (currentUser) {
+      const updatedUser: User = {
+        ...currentUser,
+        isSubscribed: true,
+        subscriptionPlan: plan,
+        subscriptionPrice: price,
+        subscriptionNextBilling: 'Dans 30 jours',
+      };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('solvapact_user', JSON.stringify(updatedUser));
+    }
+  };
+
+  const handleDeleteDossier = (dossierId: string) => {
+    setDossiers((prev) => prev.filter((d) => d.id !== dossierId));
+  };
+
+  const handleDeleteNegotiation = (threadId: string) => {
+    setNegotiations((prev) => {
+      const updated = prev.filter((n) => n.id !== threadId);
+      if (selectedThreadId === threadId) {
+        setSelectedThreadId(updated[0]?.id || null);
+      }
+      return updated;
+    });
+  };
+
+  const handleClearAllTests = () => {
+    if (window.confirm('Voulez-vous supprimer tous les dossiers et discussions de test ?')) {
+      setDossiers([]);
+      setNegotiations([]);
+      setSelectedThreadId(null);
+      localStorage.removeItem('solvapact_dossiers');
+      localStorage.removeItem('solvapact_negotiations');
     }
   };
 
@@ -394,6 +438,7 @@ export default function App() {
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
+        onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
       />
 
       {/* Main Content Viewport */}
@@ -567,6 +612,7 @@ export default function App() {
                       dossier={dossier}
                       onSelect={(d) => setSelectedDossierForDetail(d)}
                       onStartNegotiation={(d) => handleStartNegotiation(d)}
+                      onDelete={handleDeleteDossier}
                     />
                   ))}
                 </div>
@@ -620,13 +666,24 @@ export default function App() {
                 </p>
               </div>
 
-              <button
-                onClick={() => handleOpenDepositWithType('dette')}
-                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 self-start shadow-xs"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>Nouveau dossier</span>
-              </button>
+              <div className="flex items-center gap-3">
+                {myDossiers.length > 0 && (
+                  <button
+                    onClick={handleClearAllTests}
+                    className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Effacer les tests</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => handleOpenDepositWithType('dette')}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 self-start shadow-xs"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Nouveau dossier</span>
+                </button>
+              </div>
             </div>
 
             {myDossiers.length > 0 ? (
@@ -637,6 +694,7 @@ export default function App() {
                     dossier={dossier}
                     onSelect={(d) => setSelectedDossierForDetail(d)}
                     onStartNegotiation={(d) => handleStartNegotiation(d)}
+                    onDelete={handleDeleteDossier}
                   />
                 ))}
               </div>
@@ -674,9 +732,20 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                <Coins className="w-4 h-4 text-amber-600" />
-                <span>Commission plateforme de 2% retenue au succès</span>
+              <div className="flex items-center gap-3">
+                {negotiations.length > 0 && (
+                  <button
+                    onClick={handleClearAllTests}
+                    className="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Effacer les tests</span>
+                  </button>
+                )}
+                <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-amber-600" />
+                  <span>Commission plateforme de 2% retenue au succès</span>
+                </div>
               </div>
             </div>
 
@@ -689,6 +758,7 @@ export default function App() {
               onAcceptOffer={handleAcceptOffer}
               onViewContract={(thread) => setViewingContractThread(thread)}
               currentUserRole={userRole}
+              onDeleteThread={handleDeleteNegotiation}
             />
           </div>
         )}
@@ -747,10 +817,17 @@ export default function App() {
         onClose={() => setViewingContractThread(null)}
       />
 
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        currentUser={currentUser}
+        onSubscriptionSuccess={handleSubscriptionSuccess}
+      />
+
       {/* Clean Unboxed Footer */}
       <footer className="bg-white border-t border-slate-200 py-8 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-slate-900">SolvaPact</span>
             <span aria-hidden="true">·</span>
             <button
@@ -760,7 +837,12 @@ export default function App() {
               Aide & Contact (solvapact.vercel.app@gmail.com)
             </button>
             <span aria-hidden="true">·</span>
-            <span className="text-amber-800 font-semibold">Commission 2%</span>
+            <button
+              onClick={() => setActiveTab('fondateur')}
+              className="text-amber-800 hover:text-amber-950 font-bold bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition-colors"
+            >
+              🏦 Espace Fondateur (Saisie IBAN & MRR)
+            </button>
           </div>
 
           <div className="flex items-center gap-4 text-slate-400 text-[11px]">

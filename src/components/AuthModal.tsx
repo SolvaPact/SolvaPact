@@ -324,6 +324,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </button>
           </div>
 
+          {/* Shortcut Fondateur */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const founderUser: User = {
+                  id: 'usr-founder',
+                  name: 'Direction Fondateur SolvaPact',
+                  email: 'solvapact.vercel.app@gmail.com',
+                  role: 'investisseur',
+                  city: 'Paris',
+                  createdAt: new Date().toLocaleDateString('fr-FR'),
+                  isSubscribed: true,
+                };
+                onSuccess(founderUser);
+                onClose();
+              }}
+              className="w-full py-2 px-3 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+              <span>👑 Connexion instantanée Fondateur (solvapact.vercel.app@gmail.com)</span>
+            </button>
+          </div>
+
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500 leading-relaxed text-center">
             Commission claire de 2 % prélevée uniquement lors de la signature d'un accord financier validé.
           </div>
