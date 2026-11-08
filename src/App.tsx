@@ -51,6 +51,11 @@ export default function App() {
 
   const [negotiations, setNegotiations] = useState<NegotiationThread[]>(() => {
     localStorage.removeItem('solvapact_negotiations');
+    // Clean any old mock statistics to start completely at 0
+    const oldStats = localStorage.getItem('solvapact_subscription_stats');
+    if (oldStats && (oldStats.includes('14') || oldStats.includes('388.6') || oldStats.includes('18'))) {
+      localStorage.removeItem('solvapact_subscription_stats');
+    }
     const saved = localStorage.getItem('solvapact_negotiations_v2');
     if (saved) {
       try {

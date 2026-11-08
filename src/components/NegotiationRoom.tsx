@@ -53,11 +53,56 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
     activeThread?.disbursementStatus === 'fonds_liberes' || false
   );
 
+  const currentProposedAmount = activeThread?.currentOffer.proposedAmount || 0;
+  // If > 20000 €, rate is 1.8% as requested by founder; otherwise 2% (or 1.2% if rachat dette)
+  const currentCommissionRate =
+    activeThread?.dossierType === 'dette'
+      ? 0.012
+      : currentProposedAmount > 20000
+      ? 0.018
+      : 0.02;
+
+  const currentPlatformFee = Math.round(currentProposedAmount * currentCommissionRate);
+  const currentNetAmount = currentProposedAmount - currentPlatformFee;
+
   const handleExecuteDisbursement = () => {
+    if (!activeThread) return;
     setIsDisbursing(true);
     setTimeout(() => {
       setIsDisbursing(false);
       setDisbursedSuccess(true);
+
+      // Record 2% commission for the founder!
+      try {
+        const commissionsRaw = localStorage.getItem('solvapact_founder_commissions_v2');
+        const list = commissionsRaw ? JSON.parse(commissionsRaw) : [];
+        list.unshift({
+          id: `com-${Date.now()}`,
+          threadId: activeThread.id,
+          dossierTitle: activeThread.dossierTitle,
+          applicantName: activeThread.applicantName,
+          investorName: activeThread.investorName,
+          totalAmount: currentProposedAmount,
+          commissionRate: `${(currentCommissionRate * 100).toFixed(1)}%`,
+          commissionAmount: currentPlatformFee,
+          netDisbursed: currentNetAmount,
+          date: new Date().toLocaleDateString('fr-FR'),
+          method: disbursementMethod === 'carte' ? 'Carte Bancaire' : 'Virement SEPA Direct',
+        });
+        localStorage.setItem('solvapact_founder_commissions_v2', JSON.stringify(list));
+
+        // Update founder stats balance
+        const savedStats = localStorage.getItem('solvapact_subscription_stats_v2');
+        const stats = savedStats
+          ? JSON.parse(savedStats)
+          : { totalSubscribers: 0, monthlyRevenue: 0, totalCollected: 0, totalCommissions: 0 };
+
+        stats.totalCommissions = (stats.totalCommissions || 0) + currentPlatformFee;
+        stats.totalCollected = (stats.totalCollected || 0) + currentPlatformFee;
+        localStorage.setItem('solvapact_subscription_stats_v2', JSON.stringify(stats));
+      } catch (e) {
+        console.error(e);
+      }
     }, 1200);
   };
 
@@ -402,13 +447,31 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                       Règlement & Déblocage des fonds de l'accord
                     </h4>
                   </div>
-                  <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                    Montant de l'accord : {formatEuro(activeThread.currentOffer.proposedAmount)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                      Montant total : {formatEuro(currentProposedAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Ventilation financière 2% / 98% */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block font-semibold">Montant total accordé</span>
+                    <span className="font-bold text-slate-900 font-mono text-sm">{formatEuro(currentProposedAmount)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-emerald-700 uppercase block font-semibold">Déblocage bénéficiaire (98%)</span>
+                    <span className="font-bold text-emerald-800 font-mono text-sm">{formatEuro(currentNetAmount)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-amber-700 uppercase block font-semibold">Commission SolvaPact ({(currentCommissionRate * 100).toFixed(1)}%)</span>
+                    <span className="font-bold text-amber-900 font-mono text-sm">{formatEuro(currentPlatformFee)}</span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Le protocole d'accord juridique est formellement signé. Procédez maintenant au déblocage de la somme pour exécuter la transaction.
+                  Le protocole d'accord juridique est formellement signé. Procédez au déblocage : la commission de sécurisation de <strong>{(currentCommissionRate * 100).toFixed(1)}% ({formatEuro(currentPlatformFee)})</strong> est automatiquement prélevée et reversée au compte SolvaPact.
                 </p>
 
                 {disbursedSuccess ? (
@@ -418,7 +481,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                       <span>Fonds débloqués & Règlement validé avec succès !</span>
                     </div>
                     <p className="text-[11px] text-emerald-800 leading-relaxed">
-                      Le versement de {formatEuro(activeThread.currentOffer.proposedAmount)} a été confirmé. Une quittance libératoire certifiée conforme au Code Civil a été enregistrée au registre d'accords.
+                      Le versement de {formatEuro(currentNetAmount)} au bénéficiaire a été confirmé. La commission de service de {formatEuro(currentPlatformFee)} a été transférée au compte SolvaPact. Une quittance libératoire certifiée conforme au Code Civil a été enregistrée au registre d'accords.
                     </p>
                   </div>
                 ) : (

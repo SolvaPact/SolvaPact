@@ -128,6 +128,9 @@ export interface FounderSettings {
   autoPayoutEnabled: boolean;
   totalSubscribers?: number;
   monthlyRevenue?: number;
+  stripeLiveMode?: boolean;
+  stripePaymentLinkDemandeur?: string;
+  stripePaymentLinkInvestisseur?: string;
 }
 
 export type ActiveTab =

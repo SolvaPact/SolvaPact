@@ -91,16 +91,16 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
       // Record subscription in founder's accumulated earnings
       try {
-        const savedStats = localStorage.getItem('solvapact_subscription_stats');
+        const savedStats = localStorage.getItem('solvapact_subscription_stats_v2');
         const stats = savedStats
           ? JSON.parse(savedStats)
-          : { totalSubscribers: 18, monthlyRevenue: 490, totalCollected: 1470 };
+          : { totalSubscribers: 0, monthlyRevenue: 0, totalCollected: 0, totalCommissions: 0 };
 
         stats.totalSubscribers = (stats.totalSubscribers || 0) + 1;
         stats.monthlyRevenue = (stats.monthlyRevenue || 0) + planPrices[selectedPlan];
         stats.totalCollected = (stats.totalCollected || 0) + planPrices[selectedPlan];
 
-        localStorage.setItem('solvapact_subscription_stats', JSON.stringify(stats));
+        localStorage.setItem('solvapact_subscription_stats_v2', JSON.stringify(stats));
       } catch (err) {
         console.error('Error recording subscription stats', err);
       }

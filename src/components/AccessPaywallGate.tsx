@@ -120,23 +120,43 @@ export const AccessPaywallGate: React.FC<AccessPaywallGateProps> = ({
       return;
     }
 
+    // If founder has enabled Real Mode (Stripe Live), redirect to the real Stripe payment page!
+    try {
+      const savedSettings = localStorage.getItem('solvapact_founder_settings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        if (parsed.stripeLiveMode) {
+          const targetUrl =
+            selectedPlan === 'demandeur'
+              ? parsed.stripePaymentLinkDemandeur
+              : parsed.stripePaymentLinkInvestisseur;
+          if (targetUrl && targetUrl.startsWith('http')) {
+            window.location.href = targetUrl;
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     setIsProcessing(true);
 
     setTimeout(() => {
       setIsProcessing(false);
       setIsSuccess(true);
 
-      // Increment founder stats
+      // Increment founder stats authentically
       try {
-        const savedStats = localStorage.getItem('solvapact_subscription_stats');
+        const savedStats = localStorage.getItem('solvapact_subscription_stats_v2');
         const stats = savedStats
           ? JSON.parse(savedStats)
-          : { totalSubscribers: 14, monthlyRevenue: 388.6, totalCollected: 1165.8 };
+          : { totalSubscribers: 0, monthlyRevenue: 0, totalCollected: 0, totalCommissions: 0 };
 
         stats.totalSubscribers = (stats.totalSubscribers || 0) + 1;
         stats.monthlyRevenue = (stats.monthlyRevenue || 0) + planPrices[selectedPlan];
         stats.totalCollected = (stats.totalCollected || 0) + planPrices[selectedPlan];
-        localStorage.setItem('solvapact_subscription_stats', JSON.stringify(stats));
+        localStorage.setItem('solvapact_subscription_stats_v2', JSON.stringify(stats));
       } catch (err) {
         console.error(err);
       }
@@ -270,14 +290,14 @@ export const AccessPaywallGate: React.FC<AccessPaywallGateProps> = ({
               </div>
             </div>
 
-            {/* Testimonials / Reassurance */}
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-400" />
-                <span>Plus de <strong>120 accords sous seing privé</strong> validés ce mois-ci</span>
+            {/* Reassurance authentique */}
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Plateforme certifiée conforme aux <strong>Articles 1892 & 2044</strong> du Code Civil</span>
               </div>
-              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
-                100% Conforme Code Civil
+              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800 shrink-0">
+                Légal & Sécurisé
               </span>
             </div>
           </div>

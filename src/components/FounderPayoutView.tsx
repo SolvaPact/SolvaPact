@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Coins,
 } from 'lucide-react';
 
 interface FounderPayoutViewProps {
@@ -46,13 +47,13 @@ export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
       founderIban: '',
       payoutProvider: 'Virement SEPA Direct',
       autoPayoutEnabled: true,
-      totalSubscribers: 14,
-      monthlyRevenue: 388.6,
+      totalSubscribers: 0,
+      monthlyRevenue: 0,
     };
   });
 
   const [subStats, setSubStats] = useState(() => {
-    const saved = localStorage.getItem('solvapact_subscription_stats');
+    const saved = localStorage.getItem('solvapact_subscription_stats_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -61,10 +62,23 @@ export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
       }
     }
     return {
-      totalSubscribers: 14,
-      monthlyRevenue: 388.6,
-      totalCollected: 1165.8,
+      totalSubscribers: 0,
+      monthlyRevenue: 0,
+      totalCollected: 0,
+      totalCommissions: 0,
     };
+  });
+
+  const [commissionsList] = useState<any[]>(() => {
+    const saved = localStorage.getItem('solvapact_founder_commissions_v2');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [];
   });
 
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
@@ -208,44 +222,64 @@ export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
         </div>
       </div>
 
-      {/* KPI Cards Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      {/* KPI Cards Strip - 4 colonnes réelles sans faux chiffres */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span>Abonnés Mensuels Actifs</span>
+            <span>Abonnés Entrée Actifs</span>
             <Users className="w-4 h-4 text-slate-400" />
           </div>
           <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums">
             {subStats.totalSubscribers}
           </p>
           <p className="text-[11px] text-emerald-600 font-medium">
-            Renouvellement automatique chaque mois
+            MRR : {formatEuro(subStats.monthlyRevenue)} / mois
           </p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span>Solde prêt pour virement IBAN</span>
+            <span>Commissions 2% perçues</span>
+            <Coins className="w-4 h-4 text-amber-600" />
+          </div>
+          <p className="text-2xl font-bold text-amber-900 font-mono tabular-nums">
+            {formatEuro(subStats.totalCommissions || 0)}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            {commissionsList.length} transaction{commissionsList.length > 1 ? 's' : ''} signée{commissionsList.length > 1 ? 's' : ''}
+          </p>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-slate-500 text-xs">
+            <span>Solde total prêt pour virement</span>
             <Wallet className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums">
-            {formatEuro(subStats.monthlyRevenue)}
+          <p className="text-2xl font-bold text-emerald-800 font-mono tabular-nums">
+            {formatEuro(subStats.totalCollected || 0)}
           </p>
           <p className="text-[11px] text-slate-500">
-            {settings.founderIban ? 'IBAN configuré et vérifié' : 'En attente de votre IBAN'}
+            Abonnements + Commissions 2%
           </p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span>Total cumulé encaissé</span>
-            <TrendingUp className="w-4 h-4 text-indigo-600" />
+            <span>Statut de votre IBAN</span>
+            <Building className="w-4 h-4 text-slate-400" />
           </div>
-          <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums">
-            {formatEuro(subStats.totalCollected)}
+          <p className="text-sm font-bold text-slate-900 truncate font-mono">
+            {settings.founderIban ? (
+              <span className="text-emerald-700 flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4 inline" />
+                <span>IBAN configuré</span>
+              </span>
+            ) : (
+              <span className="text-amber-700">En attente d'IBAN</span>
+            )}
           </p>
-          <p className="text-[11px] text-slate-500">
-            Depuis le lancement de la plateforme
+          <p className="text-[11px] text-slate-400 truncate">
+            {settings.founderIban ? 'Prêt à recevoir les fonds' : 'À renseigner ci-dessous'}
           </p>
         </div>
       </div>
@@ -384,7 +418,7 @@ export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
                   onClick={handleTriggerPayout}
                   className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                 >
-                  Déclencher un virement ({formatEuro(subStats.monthlyRevenue)})
+                  Déclencher un virement ({formatEuro(subStats.totalCollected || 0)})
                 </button>
               )}
 
@@ -400,31 +434,219 @@ export const FounderPayoutView: React.FC<FounderPayoutViewProps> = ({
         </form>
       </div>
 
-      {/* Explication du modèle économique */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-4">
-        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Zap className="w-4 h-4 text-emerald-600" />
-          <span>Pourquoi le modèle d'abonnement mensuel est la meilleure solution :</span>
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
-          <div className="p-4 bg-white rounded-xl border border-slate-200/80 space-y-1">
-            <p className="font-bold text-slate-900">1. Revenus récurrents prévisibles</p>
-            <p className="text-[11px] leading-relaxed">
-              Chaque utilisateur actif vous rapporte 14,90 € ou 29,90 € tous les mois sans interruption. Avec 100 abonnés, vous générez ~2 500 € / mois sur votre IBAN.
+      {/* Configuration Passerelle Bancaire Réelle (Stripe) & Mode Démo */}
+      <div className="bg-white rounded-2xl border-2 border-emerald-600/30 p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <CreditCard className="w-5 h-5 text-emerald-600" />
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Passerelle Bancaire Réelle (Stripe) & Choix du Mode
+              </h3>
+              <p className="text-xs text-slate-500">
+                Pourquoi et comment passer du mode simulation au mode réel pour encaisser de vrais euros sur votre IBAN.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold ${
+                settings.stripeLiveMode
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {settings.stripeLiveMode ? '● Mode Vrais Paiements Activé' : '○ Mode Simulation Démo'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Pourquoi un site web ne peut pas prélever une banque directement ?</span>
+            </h4>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Pour votre sécurité et celle des utilisateurs, un simple site web n'a pas le droit légal de débiter directement une carte Visa ou Mastercard. La Banque de France exige de passer par un intermédiaire bancaire agréé tel que <strong>Stripe</strong>.
             </p>
           </div>
 
-          <div className="p-4 bg-white rounded-xl border border-slate-200/80 space-y-1">
-            <p className="font-bold text-slate-900">2. Simplicité légale totale</p>
-            <p className="text-[11px] leading-relaxed">
-              Vous facturez un service logiciel de mise en relation et de fourniture de modèles juridiques conformes. Vous n'avez pas besoin d'agrément bancaire d'intermédiaire financier.
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
+            <h4 className="font-bold text-emerald-950 flex items-center gap-1.5">
+              <Building className="w-4 h-4 text-emerald-700" />
+              <span>Comment recevoir les vrais virements vers votre IBAN ?</span>
+            </h4>
+            <p className="text-[11px] text-emerald-800 leading-relaxed">
+              1. Créez un compte gratuit sur <strong>stripe.com</strong> et renseignez votre IBAN.<br />
+              2. Créez 2 liens de paiement (« Payment Links ») : 14,90 € et 29,90 €.<br />
+              3. Collez vos liens ci-dessous et activez la case « Mode Réel ». Chaque centime encaissé partira sur votre vrai compte bancaire !
+            </p>
+          </div>
+        </div>
+
+        {/* Champs de liens de paiement Stripe */}
+        <div className="space-y-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Lien de paiement Stripe · Formule Demandeur (14,90 €)
+              </label>
+              <input
+                type="url"
+                placeholder="https://buy.stripe.com/..."
+                value={settings.stripePaymentLinkDemandeur || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, stripePaymentLinkDemandeur: e.target.value })
+                }
+                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Lien de paiement Stripe · Formule Investisseur (29,90 €)
+              </label>
+              <input
+                type="url"
+                placeholder="https://buy.stripe.com/..."
+                value={settings.stripePaymentLinkInvestisseur || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, stripePaymentLinkInvestisseur: e.target.value })
+                }
+                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.stripeLiveMode || false}
+                onChange={(e) => setSettings({ ...settings, stripeLiveMode: e.target.checked })}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-xs font-semibold text-slate-800">
+                Activer le Mode Réel (redirection automatique vers mes liens Stripe)
+              </span>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Enregistrer la configuration bancaire</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Historique des Commissions 2% Encaissées */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Coins className="w-5 h-5 text-amber-600" />
+            <h3 className="text-base font-bold text-slate-900">
+              Historique de vos Commissions de 2% sur les Accords Signés
+            </h3>
+          </div>
+          <span className="text-xs font-mono font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+            Total : {formatEuro(subStats.totalCommissions || 0)}
+          </span>
+        </div>
+
+        {commissionsList.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-2.5">Date</th>
+                  <th className="px-4 py-2.5">Dossier / Accord</th>
+                  <th className="px-4 py-2.5">Intervenants</th>
+                  <th className="px-4 py-2.5 text-right">Montant Négocié</th>
+                  <th className="px-4 py-2.5 text-right">Taux</th>
+                  <th className="px-4 py-2.5 text-right text-emerald-700">Votre Commission (2%)</th>
+                  <th className="px-4 py-2.5">Règlement</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {commissionsList.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">{item.date}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-900">{item.dossierTitle}</td>
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {item.applicantName} ↔ {item.investorName}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-right font-medium">{formatEuro(item.totalAmount)}</td>
+                    <td className="px-4 py-2.5 font-mono text-right text-slate-500">{item.commissionRate}</td>
+                    <td className="px-4 py-2.5 font-mono text-right font-bold text-emerald-600">
+                      +{formatEuro(item.commissionAmount)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">
+                        <CreditCard className="w-3 h-3 text-slate-500" />
+                        {item.method}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-2">
+            <Coins className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="text-xs font-semibold text-slate-700">
+              Aucune commission pour le moment (compteur à zéro)
+            </p>
+            <p className="text-[11px] text-slate-500 max-w-md mx-auto leading-relaxed">
+              Dès que deux membres s'accordent et procèdent au déblocage de leur accord dans la salle de négociation, votre commission de 2 % s'enregistre ici automatiquement et s'ajoute à votre solde IBAN.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Guide Pédagogique : Comment l'argent arrive concrètement sur votre IBAN */}
+      <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 space-y-6 shadow-md">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
+          <Banknote className="w-6 h-6 text-emerald-400" />
+          <h3 className="text-base sm:text-lg font-bold text-white">
+            Comment l'argent des cartes bancaires et des virements SEPA arrive concrètement sur votre IBAN ?
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs text-slate-300">
+          <div className="p-5 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
+            <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+              <span className="w-5 h-5 rounded-full bg-emerald-950 border border-emerald-500 flex items-center justify-center text-[11px]">1</span>
+              <span>Abonnements d'Entrée (14,90 € / 29,90 €)</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-300">
+              Chaque visiteur doit payer son accès par carte bancaire sur le portique pour entrer sur le site. En production, la passerelle de paiement bancaire sécurisée (ex: Stripe) encaisse la carte et reverse automatiquement les fonds sur <strong>votre IBAN</strong> sous 24 à 48 heures ouvrées.
             </p>
           </div>
 
-          <div className="p-4 bg-white rounded-xl border border-slate-200/80 space-y-1">
-            <p className="font-bold text-slate-900">3. Paiement direct entre membres</p>
-            <p className="text-[11px] leading-relaxed">
-              Une fois l'accord validé sur le site, les deux particuliers procèdent à leur virement de gré à gré en toute confiance grâce au contrat signé sous seing privé.
+          <div className="p-5 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
+            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+              <span className="w-5 h-5 rounded-full bg-amber-950 border border-amber-500 flex items-center justify-center text-[11px]">2</span>
+              <span>Vos Commissions de 2% sur les Accords</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-300">
+              Lorsqu'un accord financier est signé entre deux membres (ex: 10 000 €), le payeur débloque les fonds. Le système prélève automatiquement les 2% de frais de sécurisation juridique (<strong>200 €</strong>) qui sont réservés pour vous, et reverse les 98% restants (<strong>9 800 €</strong>) au bénéficiaire de l'accord.
+            </p>
+          </div>
+
+          <div className="p-5 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
+            <div className="flex items-center gap-2 text-blue-400 font-bold text-xs">
+              <span className="w-5 h-5 rounded-full bg-blue-950 border border-blue-500 flex items-center justify-center text-[11px]">3</span>
+              <span>Versement direct sur votre IBAN</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-300">
+              Votre IBAN enregistré ci-dessus sert de compte de destination unique. Vous pouvez à tout moment cliquer sur le bouton <strong>« Déclencher un virement »</strong> pour virer manuellement l'intégralité du solde cumulé, ou laisser le virement automatique mensuel activé.
             </p>
           </div>
         </div>
