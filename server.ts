@@ -410,10 +410,12 @@ async function startServer() {
         : '';
 
       const contents = [
-        ...(Array.isArray(history) ? history.slice(-10) : []).map((turn) => ({
-          role: turn.role === 'model' ? 'model' : 'user',
-          parts: [{ text: turn.text }],
-        })),
+        ...(Array.isArray(history) ? history.slice(-10) : [])
+          .filter((turn) => turn && typeof turn.text === 'string' && turn.text.trim())
+          .map((turn) => ({
+            role: turn.role === 'model' ? 'model' : 'user',
+            parts: [{ text: turn.text.trim() }],
+          })),
         {
           role: 'user',
           parts: [{ text: message.trim() }],

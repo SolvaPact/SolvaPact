@@ -34,6 +34,7 @@ interface AiChatMessage {
   text: string;
   suggestHumanSupport?: boolean;
   retryQuestion?: string;
+  isError?: boolean;
 }
 
 const STARTER_QUESTIONS = [
@@ -115,6 +116,11 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
       text: trimmed,
     };
 
+    const cleanHistory = messages
+      .filter((m) => m.id !== 'welcome-solvasolution' && !m.isError)
+      .slice(-10)
+      .map((m) => ({ role: m.role, text: m.text }));
+
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
     setChatInput('');
@@ -122,10 +128,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
 
     const payload = JSON.stringify({
       message: trimmed,
-      history: nextHistory
-        .filter((m) => m.id !== 'welcome-solvasolution')
-        .slice(-10)
-        .map((m) => ({ role: m.role, text: m.text })),
+      history: cleanHistory,
       userContext: currentUser
         ? {
             name: currentUser.name,
@@ -181,6 +184,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
           text: replyText,
           suggestHumanSupport: Boolean(data.suggestHumanSupport || !response.ok),
           retryQuestion: !response.ok ? trimmed : undefined,
+          isError: !response.ok,
         },
       ]);
     } catch {
@@ -192,6 +196,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
           text: "Connexion momentanément interrompue avec SolvaSolution (le serveur est peut-être en cours de réveil). Vous pouvez réessayer votre question ou la transférer directement au responsable.",
           suggestHumanSupport: true,
           retryQuestion: trimmed,
+          isError: true,
         },
       ]);
     } finally {
