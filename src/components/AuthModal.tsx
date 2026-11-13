@@ -30,6 +30,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [reasonForJoining, setReasonForJoining] = useState(
     'Régler ou faire racheter une dette'
   );
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +54,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setError('Veuillez renseigner votre ville et votre code postal.');
         return;
       }
+      if (!acceptedTerms) {
+        setError(
+          "Veuillez accepter les Conditions d'Utilisation et le partage de vos coordonnées de contact pour la négociation."
+        );
+        return;
+      }
     }
 
     const fullName = mode === 'register' ? `${firstName} ${lastName}`.trim() : email.split('@')[0];
@@ -70,6 +77,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       phone: phone || undefined,
       reasonForJoining: reasonForJoining,
       createdAt: new Date().toLocaleDateString('fr-FR'),
+      acceptedTermsAt: mode === 'register' ? new Date().toLocaleDateString('fr-FR') : undefined,
     };
 
     onSuccess(userData);
@@ -314,42 +322,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           </div>
 
+          {mode === 'register' && (
+            <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50 text-[11px] text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-0.5 rounded border-slate-300 text-slate-900"
+              />
+              <span className="leading-relaxed">
+                J'accepte les Conditions d'Utilisation : mes coordonnées (<strong>e-mail, téléphone, prénom et nom</strong>) seront visibles aux utilisateurs qui cliquent sur « Négocier » sur mes dossiers publiés.
+              </span>
+            </label>
+          )}
+
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs"
+              className="w-full py-2.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <span>{mode === 'register' ? 'Valider mon inscription et continuer' : 'Se connecter'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Shortcut Fondateur */}
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                const founderUser: User = {
-                  id: 'usr-founder',
-                  name: 'Direction Fondateur SolvaPact',
-                  email: 'solvapact.vercel.app@gmail.com',
-                  role: 'investisseur',
-                  city: 'Paris',
-                  createdAt: new Date().toLocaleDateString('fr-FR'),
-                  isSubscribed: true,
-                };
-                onSuccess(founderUser);
-                onClose();
-              }}
-              className="w-full py-2 px-3 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
-              <span>👑 Connexion instantanée Fondateur (solvapact.vercel.app@gmail.com)</span>
-            </button>
-          </div>
-
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500 leading-relaxed text-center">
-            Commission claire de 2 % prélevée uniquement lors de la signature d'un accord financier validé.
+            Inscription et préparation de dossier 100 % gratuites · Seule la publication en ligne est facturée 29,99 € (0 % de commission sur les accords).
           </div>
         </form>
       </div>

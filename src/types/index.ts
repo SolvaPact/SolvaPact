@@ -2,8 +2,14 @@ export type DossierType = 'dette' | 'investissement' | 'autre';
 
 export type RiskGrade = 'A' | 'B' | 'C' | 'D';
 
+export type LoyaltyTier = 'none' | 'standard' | 'bronze' | 'silver' | 'gold';
+
 export interface ApplicantInfo {
   name: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
   pseudonym: string;
   city: string;
   postalCode?: string;
@@ -13,6 +19,8 @@ export interface ApplicantInfo {
   verifiedIdentity: boolean;
   verifiedIncome: boolean;
   riskGrade: RiskGrade;
+  loyaltyTier?: LoyaltyTier;
+  loyaltyTitle?: string;
 }
 
 export interface DocumentItem {
@@ -29,12 +37,12 @@ export interface Dossier {
   title: string;
   type: DossierType;
   category: string;
-  amountRequested: number; // Montant souhaité ou montant restant dû
-  originalDebtAmount?: number; // Pour les dettes: montant initial avant négociation
-  targetInterestRate?: number; // Pour investissement ou prêt: ex 5.5%
-  targetDiscount?: number; // Pour rachat de dette: ex 20%
-  maxMonthlyPayment: number; // Capacité mensuelle
-  termMonths: number; // Durée en mois
+  amountRequested: number;
+  originalDebtAmount?: number;
+  targetInterestRate?: number;
+  targetDiscount?: number;
+  maxMonthlyPayment: number;
+  termMonths: number;
   description: string;
   contextStory: string;
   guaranteeType: string;
@@ -44,6 +52,7 @@ export interface Dossier {
   createdAt: string;
   offersCount: number;
   urgency: 'normale' | 'prioritaire' | 'urgente';
+  publicationPaidAmount?: number;
 }
 
 export interface User {
@@ -54,15 +63,16 @@ export interface User {
   age?: number;
   email: string;
   role: 'demandeur' | 'investisseur';
+  profession?: string;
   city: string;
   postalCode?: string;
   phone?: string;
   reasonForJoining?: string;
   createdAt: string;
-  isSubscribed?: boolean;
-  subscriptionPlan?: 'demandeur' | 'investisseur';
-  subscriptionPrice?: number;
-  subscriptionNextBilling?: string;
+  acceptedTermsAt?: string;
+  loyaltyActive?: boolean;
+  loyaltyExp?: number;
+  loyaltyActivatedAt?: string;
 }
 
 export interface Offer {
@@ -71,11 +81,9 @@ export interface Offer {
   investorName: string;
   investorAvatar?: string;
   proposedAmount: number;
-  platformFee: number; // 2% de commission plateforme
-  netAmountToApplicant: number; // Montant net perçu
-  proposedInterestRate: number; // % annuel
+  proposedInterestRate: number;
   proposedTermMonths: number;
-  discountPercentage?: number; // % de décote pour rachat de dette
+  discountPercentage?: number;
   proposedMonthlyPayment: number;
   conditions: string;
   status: 'pending' | 'countered' | 'accepted' | 'declined';
@@ -109,37 +117,54 @@ export interface NegotiationThread {
   disbursementDate?: string;
 }
 
-export interface PayoutTransaction {
-  id: string;
-  dossierId: string;
-  dossierTitle: string;
-  totalTransactionAmount: number;
-  commissionFee2Pct: number;
-  status: 'en_attente_signature' | 'sequestre_actif' | 'vire_vers_votre_compte';
+export interface InvoiceData {
+  invoiceNumber: string;
   date: string;
-  payoutReference: string;
-}
-
-export interface FounderSettings {
-  founderName: string;
-  founderEmail: string;
-  founderIban: string;
-  payoutProvider: 'Stripe Connect' | 'Lemonway' | 'Mangopay' | 'Virement SEPA Direct';
-  autoPayoutEnabled: boolean;
-  totalSubscribers?: number;
-  monthlyRevenue?: number;
-  stripeLiveMode?: boolean;
-  stripePaymentLinkDemandeur?: string;
-  stripePaymentLinkInvestisseur?: string;
+  customerName: string;
+  customerEmail: string;
+  itemDescription: string;
+  amountHT: number;
+  vatRate: number;
+  vatAmount: number;
+  amountTTC: number;
+  paymentMethod: string;
+  transactionId?: string;
+  type: 'publication' | 'loyalty';
 }
 
 export type ActiveTab =
+  | 'decouverte'
   | 'explorer'
   | 'dette'
   | 'investissement'
   | 'autre'
   | 'mes_dossiers'
-  | 'negociations'
   | 'simulateur'
-  | 'fondateur'
   | 'aide';
+
+export type AnalyticsEventType =
+  | 'dossier_published'
+  | 'loyalty_created'
+  | 'dossier_accepted'
+  | 'satisfaction_review';
+
+export interface SatisfactionReview {
+  id: string;
+  dossierId?: string;
+  dossierTitle?: string;
+  rating: number;
+  comment: string;
+  userName?: string;
+  timestamp: string;
+}
+
+export interface DailyReportSummary {
+  date: string;
+  dossiersPosted: number;
+  dossierRevenue: number;
+  loyaltyAccountsCreated: number;
+  loyaltyRevenue: number;
+  dossiersAccepted: number;
+  averageRating: number | null;
+  reviews: SatisfactionReview[];
+}

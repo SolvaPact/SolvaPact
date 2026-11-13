@@ -1,21 +1,18 @@
-import React, { useState } from 'react';
-import { NegotiationThread, Offer, ChatMessage } from '../types';
-import { formatEuro, formatPct, calculateMonthlyPayment } from '../utils/finance';
+import React, { useState, useEffect } from 'react';
+import { NegotiationThread, Offer } from '../types';
+import {
+  formatEuro,
+  formatPct,
+  calculateMonthlyPayment,
+} from '../utils/finance';
 import {
   Send,
   MessageSquare,
   ShieldCheck,
   CheckCircle2,
   FileSignature,
-  ArrowRight,
   RotateCcw,
-  Scale,
-  Sparkles,
-  ChevronRight,
-  Clock,
-  CreditCard,
-  Banknote,
-  Lock,
+  Handshake,
   Trash2,
 } from 'lucide-react';
 
@@ -29,6 +26,7 @@ interface NegotiationRoomProps {
   onViewContract: (thread: NegotiationThread) => void;
   currentUserRole: 'investisseur' | 'demandeur';
   onDeleteThread?: (threadId: string) => void;
+  onMarkDisbursed?: (threadId: string, method: 'carte_bancaire' | 'virement_sepa') => void;
 }
 
 export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
@@ -39,72 +37,15 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
   onSubmitCounterOffer,
   onAcceptOffer,
   onViewContract,
-  currentUserRole,
   onDeleteThread,
+  onMarkDisbursed,
 }) => {
   const activeThread =
     threads.find((t) => t.id === activeThreadId) || threads[0] || null;
 
   const [messageInput, setMessageInput] = useState('');
   const [showCounterModal, setShowCounterModal] = useState(false);
-  const [disbursementMethod, setDisbursementMethod] = useState<'carte' | 'virement'>('carte');
-  const [isDisbursing, setIsDisbursing] = useState(false);
-  const [disbursedSuccess, setDisbursedSuccess] = useState(
-    activeThread?.disbursementStatus === 'fonds_liberes' || false
-  );
-
-  const currentProposedAmount = activeThread?.currentOffer.proposedAmount || 0;
-  // If > 20000 €, rate is 1.8% as requested by founder; otherwise 2% (or 1.2% if rachat dette)
-  const currentCommissionRate =
-    activeThread?.dossierType === 'dette'
-      ? 0.012
-      : currentProposedAmount > 20000
-      ? 0.018
-      : 0.02;
-
-  const currentPlatformFee = Math.round(currentProposedAmount * currentCommissionRate);
-  const currentNetAmount = currentProposedAmount - currentPlatformFee;
-
-  const handleExecuteDisbursement = () => {
-    if (!activeThread) return;
-    setIsDisbursing(true);
-    setTimeout(() => {
-      setIsDisbursing(false);
-      setDisbursedSuccess(true);
-
-      // Record 2% commission for the founder!
-      try {
-        const commissionsRaw = localStorage.getItem('solvapact_founder_commissions_v2');
-        const list = commissionsRaw ? JSON.parse(commissionsRaw) : [];
-        list.unshift({
-          id: `com-${Date.now()}`,
-          threadId: activeThread.id,
-          dossierTitle: activeThread.dossierTitle,
-          applicantName: activeThread.applicantName,
-          investorName: activeThread.investorName,
-          totalAmount: currentProposedAmount,
-          commissionRate: `${(currentCommissionRate * 100).toFixed(1)}%`,
-          commissionAmount: currentPlatformFee,
-          netDisbursed: currentNetAmount,
-          date: new Date().toLocaleDateString('fr-FR'),
-          method: disbursementMethod === 'carte' ? 'Carte Bancaire' : 'Virement SEPA Direct',
-        });
-        localStorage.setItem('solvapact_founder_commissions_v2', JSON.stringify(list));
-
-        // Update founder stats balance
-        const savedStats = localStorage.getItem('solvapact_subscription_stats_v2');
-        const stats = savedStats
-          ? JSON.parse(savedStats)
-          : { totalSubscribers: 0, monthlyRevenue: 0, totalCollected: 0, totalCommissions: 0 };
-
-        stats.totalCommissions = (stats.totalCommissions || 0) + currentPlatformFee;
-        stats.totalCollected = (stats.totalCollected || 0) + currentPlatformFee;
-        localStorage.setItem('solvapact_subscription_stats_v2', JSON.stringify(stats));
-      } catch (e) {
-        console.error(e);
-      }
-    }, 1200);
-  };
+  const [confirmDeleteThread, setConfirmDeleteThread] = useState(false);
 
   // Counter offer state
   const [counterAmount, setCounterAmount] = useState<number>(
@@ -117,20 +58,26 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
     activeThread?.currentOffer.proposedTermMonths || 36
   );
   const [counterConditions, setCounterConditions] = useState(
-    'Remboursement par prélèvement bancaire SEPA avec engagement sous seing privé.'
+    'Accord sous seing privé · Virements effectués directement entre les parties en dehors de SolvaPact.'
   );
+
+  useEffect(() => {
+    setConfirmDeleteThread(false);
+    if (activeThread) {
+      setCounterAmount(activeThread.currentOffer.proposedAmount);
+      setCounterRate(activeThread.currentOffer.proposedInterestRate);
+      setCounterTerm(activeThread.currentOffer.proposedTermMonths);
+      setCounterConditions(activeThread.currentOffer.conditions);
+    }
+  }, [activeThread?.id]);
+
+  const currentProposedAmount = activeThread?.currentOffer.proposedAmount || 0;
 
   const calculatedCounterMonthly = calculateMonthlyPayment(
     counterAmount,
     counterRate,
     counterTerm
   );
-
-  const isDebtThread = activeThread?.dossierType === 'dette';
-  const threadCommissionRate = isDebtThread ? 0.012 : 0.02;
-
-  const counterPlatformFee = Math.round(counterAmount * threadCommissionRate);
-  const counterNetAmount = counterAmount - counterPlatformFee;
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,8 +97,6 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
 
     onSubmitCounterOffer(activeThread.id, {
       proposedAmount: Number(counterAmount),
-      platformFee: counterPlatformFee,
-      netAmountToApplicant: counterNetAmount,
       proposedInterestRate: Number(counterRate),
       proposedTermMonths: Number(counterTerm),
       proposedMonthlyPayment: calculatedCounterMonthly,
@@ -169,22 +114,23 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
           Aucune négociation active pour le moment
         </h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-          Consultez la liste des dossiers disponibles ou déposez votre demande pour initier des échanges directs et des offres de financement.
+          Ouvrez un dossier publié et cliquez sur « Négocier avec le créateur » pour démarrer une discussion directe.
         </p>
       </div>
     );
   }
 
   const isSigned = activeThread.status === 'agreement_signed';
+  const isSettledExternally = activeThread.disbursementStatus === 'fonds_liberes';
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs my-6 grid grid-cols-1 lg:grid-cols-12 min-h-[680px]">
-      {/* Left Sidebar: Threads List (3 cols) */}
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs my-6 grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
+      {/* Left Sidebar */}
       <div className="lg:col-span-3 border-r border-slate-200 bg-slate-50/70 p-4 flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between mb-3 px-1">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Discussions actives
+              Discussions sur dossiers
             </h3>
             <span className="text-[11px] text-slate-500 tabular-nums">
               {threads.length} fil{threads.length > 1 ? 's' : ''}
@@ -223,11 +169,12 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                     {hasAgreement ? (
                       <span className="text-emerald-700 font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Accord signé
+                        Accord conclu
                       </span>
                     ) : (
                       <span className="text-slate-500 tabular-nums">
-                        {formatPct(thread.currentOffer.proposedInterestRate)} · {thread.currentOffer.proposedTermMonths}m
+                        {formatPct(thread.currentOffer.proposedInterestRate)} ·{' '}
+                        {thread.currentOffer.proposedTermMonths}m
                       </span>
                     )}
                   </div>
@@ -240,26 +187,26 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
         <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1 mt-4">
           <p className="font-semibold text-slate-900 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            Cadre de négociation
+            Mise en relation uniquement
           </p>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Les offres échangées constituent des accords de principe. Une fois acceptée par les deux parties, l'accord génère automatiquement un protocole opposable.
+            SolvaPact ne gère aucun virement : vous négociez ici, puis les transferts d'argent s'effectuent directement entre vous en dehors du site.
           </p>
         </div>
       </div>
 
-      {/* Center & Right: Active Negotiation Feed & Counter-offer hub (9 cols) */}
+      {/* Main Feed */}
       <div className="lg:col-span-9 flex flex-col justify-between bg-white">
         {/* Thread Header */}
         <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500 mb-0.5">
               <span className="font-medium text-slate-700">
-                {activeThread.applicantPseudonym} (Demandeur)
+                {activeThread.applicantPseudonym} (Créateur du dossier)
               </span>
               <span aria-hidden="true">·</span>
               <span className="font-medium text-slate-700">
-                {activeThread.investorName} (Investisseur)
+                {activeThread.investorName} (Financeur)
               </span>
             </div>
             <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
@@ -271,7 +218,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
             {isSigned ? (
               <button
                 onClick={() => onViewContract(activeThread)}
-                className="px-3.5 py-2 text-xs font-bold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+                className="px-3.5 py-2 text-xs font-bold text-emerald-900 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
                 <FileSignature className="w-4 h-4 text-emerald-800" />
                 <span>Voir le Protocole d'Accord (PDF)</span>
@@ -280,7 +227,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowCounterModal(true)}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                   <span>Faire une contre-offre</span>
@@ -288,38 +235,59 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
 
                 <button
                   onClick={() => onAcceptOffer(activeThread.id)}
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Accepter l'offre en cours</span>
+                  <span>Accepter l'offre</span>
                 </button>
               </div>
             )}
 
-            {onDeleteThread && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm('Voulez-vous supprimer ce fil de négociation de test ?')) {
-                    onDeleteThread(activeThread.id);
-                  }
-                }}
-                title="Supprimer ce fil de discussion"
-                className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
+            {onDeleteThread &&
+              (confirmDeleteThread ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeleteThread(activeThread.id);
+                      setConfirmDeleteThread(false);
+                    }}
+                    className="px-2 py-1 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors"
+                  >
+                    Confirmer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteThread(false)}
+                    className="px-2 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 rounded-lg"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteThread(true)}
+                  title="Supprimer ce fil de discussion"
+                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              ))}
           </div>
         </div>
 
         {/* Active Offer Banner */}
-        <div className={`px-6 py-4 border-b ${isSigned ? 'bg-emerald-50/70 border-emerald-200' : 'bg-slate-50/90 border-slate-200'}`}>
+        <div
+          className={`px-6 py-4 border-b ${
+            isSigned ? 'bg-emerald-50/70 border-emerald-200' : 'bg-slate-50/90 border-slate-200'
+          }`}
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-xs font-semibold mb-1">
                 <span className={isSigned ? 'text-emerald-800' : 'text-slate-800'}>
-                  {isSigned ? 'Accord de principe conclu et ratifié' : 'Offre active actuellement soumise'}
+                  {isSigned ? 'Accord conclu et ratifié' : 'Proposition en cours'}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span className="text-slate-500 font-normal">{activeThread.currentOffer.createdAt}</span>
@@ -334,14 +302,6 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                 <span className="text-[11px] text-slate-400 block uppercase">Montant</span>
                 <span className="text-base font-bold text-slate-900 tabular-nums">
                   {formatEuro(activeThread.currentOffer.proposedAmount)}
-                </span>
-              </div>
-              <div>
-                <span className="text-[11px] text-amber-700 block uppercase font-medium">
-                  Com. SolvaPact ({isDebtThread ? '1,2%' : '2%'})
-                </span>
-                <span className="text-base font-bold text-amber-900 tabular-nums">
-                  {formatEuro(Math.round(activeThread.currentOffer.proposedAmount * threadCommissionRate))}
                 </span>
               </div>
               <div>
@@ -371,7 +331,9 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
               >
                 <div className="flex items-center gap-2 mb-1 text-[11px] text-slate-400">
                   <span className="font-semibold text-slate-700">{msg.senderName}</span>
-                  <span>({isInvestor ? 'Investisseur' : 'Demandeur'})</span>
+                  <span>
+                    ({isInvestor ? 'Investisseur' : msg.senderRole === 'system' ? 'Système' : 'Créateur'})
+                  </span>
                   <span aria-hidden="true">·</span>
                   <span>{msg.timestamp}</span>
                 </div>
@@ -385,7 +347,6 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                 >
                   <p>{msg.text}</p>
 
-                  {/* Attached Offer inside chat */}
                   {msg.attachedOffer && (
                     <div
                       className={`mt-3 pt-2.5 border-t ${
@@ -409,9 +370,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                           <strong>{msg.attachedOffer.proposedTermMonths} mois</strong>
                         </div>
                       </div>
-                      <p className="mt-1 opacity-90 italic">
-                        « {msg.attachedOffer.conditions} »
-                      </p>
+                      <p className="mt-1 opacity-90 italic">« {msg.attachedOffer.conditions} »</p>
                     </div>
                   )}
                 </div>
@@ -420,184 +379,38 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
           })}
 
           {isSigned && (
-            <div className="space-y-4 my-3">
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
-                <h4 className="text-sm font-bold text-emerald-950">
-                  Protocole d'accord validé et signé
-                </h4>
-                <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
-                  Les deux parties ont formellement validé les conditions financières. L'acte sous seing privé et le tableau d'amortissement sont disponibles au téléchargement.
-                </p>
+            <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3 my-3">
+              <Handshake className="w-7 h-7 text-emerald-700 mx-auto" />
+              <h4 className="text-sm font-bold text-emerald-950">
+                Accord validé — Virements à effectuer directement en dehors du site
+              </h4>
+              <p className="text-xs text-emerald-900 max-w-lg mx-auto leading-relaxed">
+                SolvaPact assure uniquement la mise en relation et la génération de votre protocole d'accord ({formatEuro(currentProposedAmount)} · 0 % de commission). Échangez vos coordonnées bancaires et procédez au virement directement entre vous en dehors de la plateforme.
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
                 <button
                   onClick={() => onViewContract(activeThread)}
-                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition-colors cursor-pointer"
                 >
                   <FileSignature className="w-4 h-4" />
-                  <span>Ouvrir l'acte juridique officiel</span>
+                  <span>Ouvrir le Protocole d'Accord</span>
                 </button>
-              </div>
 
-              {/* Module de Déblocage & Règlement des Fonds */}
-              <div className="p-5 rounded-2xl bg-white border-2 border-emerald-600/70 shadow-sm text-left space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-emerald-700" />
-                    <h4 className="text-sm font-bold text-slate-900">
-                      Règlement & Déblocage des fonds de l'accord
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                      Montant total : {formatEuro(currentProposedAmount)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Ventilation financière 2% / 98% */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase block font-semibold">Montant total accordé</span>
-                    <span className="font-bold text-slate-900 font-mono text-sm">{formatEuro(currentProposedAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-emerald-700 uppercase block font-semibold">Déblocage bénéficiaire (98%)</span>
-                    <span className="font-bold text-emerald-800 font-mono text-sm">{formatEuro(currentNetAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-amber-700 uppercase block font-semibold">Commission SolvaPact ({(currentCommissionRate * 100).toFixed(1)}%)</span>
-                    <span className="font-bold text-amber-900 font-mono text-sm">{formatEuro(currentPlatformFee)}</span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Le protocole d'accord juridique est formellement signé. Procédez au déblocage : la commission de sécurisation de <strong>{(currentCommissionRate * 100).toFixed(1)}% ({formatEuro(currentPlatformFee)})</strong> est automatiquement prélevée et reversée au compte SolvaPact.
-                </p>
-
-                {disbursedSuccess ? (
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-2">
-                    <div className="flex items-center gap-2 font-bold text-xs text-emerald-950">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Fonds débloqués & Règlement validé avec succès !</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-800 leading-relaxed">
-                      Le versement de {formatEuro(currentNetAmount)} au bénéficiaire a été confirmé. La commission de service de {formatEuro(currentPlatformFee)} a été transférée au compte SolvaPact. Une quittance libératoire certifiée conforme au Code Civil a été enregistrée au registre d'accords.
-                    </p>
-                  </div>
+                {!isSettledExternally && onMarkDisbursed ? (
+                  <button
+                    type="button"
+                    onClick={() => onMarkDisbursed(activeThread.id, 'virement_sepa')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-emerald-900 bg-white hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span>Marquer le virement externe comme effectué</span>
+                  </button>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Method selector */}
-                    <div className="flex items-center gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setDisbursementMethod('carte')}
-                        className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors ${
-                          disbursementMethod === 'carte'
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>Régler par Carte Bancaire</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDisbursementMethod('virement')}
-                        className={`px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-colors ${
-                          disbursementMethod === 'virement'
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        <Banknote className="w-3.5 h-3.5" />
-                        <span>Virement Bancaire SEPA Direct</span>
-                      </button>
-                    </div>
-
-                    {disbursementMethod === 'carte' ? (
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                              Numéro de carte bancaire
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="4970 •••• •••• ••••"
-                              defaultValue="4970 8123 9044 5122"
-                              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                Expiration
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="MM/AA"
-                                defaultValue="11/28"
-                                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                CVC
-                              </label>
-                              <input
-                                type="password"
-                                maxLength={4}
-                                placeholder="•••"
-                                defaultValue="378"
-                                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleExecuteDisbursement}
-                          disabled={isDisbursing}
-                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs disabled:opacity-50"
-                        >
-                          {isDisbursing ? (
-                            <>
-                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                              <span>Validation du règlement en cours...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="w-3.5 h-3.5" />
-                              <span>Débloquer et verser {formatEuro(activeThread.currentOffer.proposedAmount)}</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
-                        <div className="space-y-1.5 text-[11px]">
-                          <p className="text-slate-500">Coordonnées de virement du bénéficiaire :</p>
-                          <p className="font-mono font-bold text-slate-900 bg-white p-2 rounded border border-slate-200">
-                            IBAN : FR76 1005 7820 4401 9823 4567 890
-                          </p>
-                          <p className="text-slate-500">
-                            Bénéficiaire : <strong>{activeThread.applicantName}</strong> · Référence obligatoire : <strong>SP-{activeThread.id.toUpperCase()}</strong>
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleExecuteDisbursement}
-                          disabled={isDisbursing}
-                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs disabled:opacity-50"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Confirmer l'émission du virement bancaire</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-xs font-bold text-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Opération finalisée entre les parties</span>
+                  </span>
                 )}
               </div>
             </div>
@@ -616,27 +429,27 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                   "Pouvez-vous me confirmer les justificatifs de revenus ou le dernier avis d'imposition ?"
                 )
               }
-              className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors"
+              className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors cursor-pointer"
             >
               Demander pièces complémentaires
             </button>
             <button
               onClick={() =>
                 handleQuickPrompt(
-                  "Je propose un rachat comptant de la créance avec 20% de décote pour solder immédiatement."
+                  'Je propose un rachat comptant de la créance avec 20% de décote pour solder immédiatement.'
                 )
               }
-              className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors"
+              className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors cursor-pointer"
             >
               Proposer décote comptant
             </button>
             <button
               onClick={() =>
                 handleQuickPrompt(
-                  "Pour valider, une caution solidaire ou un nantissement de matériel est requis."
+                  'Pour valider, une caution solidaire ou un nantissement de matériel est requis.'
                 )
               }
-              className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors"
+              className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors cursor-pointer"
             >
               Préciser garantie requise
             </button>
@@ -644,14 +457,17 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
         )}
 
         {/* Message Input Box */}
-        <form onSubmit={handleSend} className="p-4 border-t border-slate-200 bg-white flex items-center gap-3">
+        <form
+          onSubmit={handleSend}
+          className="p-4 border-t border-slate-200 bg-white flex items-center gap-3"
+        >
           <input
             type="text"
             disabled={isSigned}
             placeholder={
               isSigned
-                ? 'La négociation est close car un accord mutuel a été signé.'
-                : 'Posez une question, proposez un ajustement de taux, ou discutez des garanties...'
+                ? 'Accord validé · Échangez vos coordonnées hors plateforme pour le virement.'
+                : 'Discutez avec le créateur du dossier, ajustez les conditions...'
             }
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
@@ -661,7 +477,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
           <button
             type="submit"
             disabled={isSigned || !messageInput.trim()}
-            className="px-4 py-2.5 text-xs font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 disabled:opacity-40 transition-colors flex items-center gap-1.5 shadow-2xs shrink-0"
+            className="px-4 py-2.5 text-xs font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 disabled:opacity-40 transition-colors flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
           >
             <span>Envoyer</span>
             <Send className="w-3.5 h-3.5" />
@@ -679,7 +495,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                   Formuler une contre-proposition
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Ajustez les conditions financières et soumettez-les formellement.
+                  Ajustez les conditions financières et soumettez-les au créateur du dossier.
                 </p>
               </div>
               <button
@@ -740,7 +556,6 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                 </div>
               </div>
 
-              {/* Monthly calculation preview */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
                 <span className="text-slate-500">Nouvelle mensualité résultante :</span>
                 <span className="text-base font-bold text-slate-900 tabular-nums">
@@ -770,9 +585,9 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 shadow-sm"
+                  className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs cursor-pointer"
                 >
-                  Transmettre la contre-offre
+                  Envoyer la contre-proposition
                 </button>
               </div>
             </form>

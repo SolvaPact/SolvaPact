@@ -1,14 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dossier, DossierType, User } from '../types';
-import { calculateMonthlyPayment, formatEuro } from '../utils/finance';
-import { X, ArrowRight, ArrowLeft, Check, Upload, ShieldCheck, AlertCircle, Coins, HelpCircle } from 'lucide-react';
+import {
+  BASE_PUBLICATION_PRICE,
+  EXP_PER_DOSSIER,
+  LOYALTY_ACTIVATION_PRICE,
+  calculateMonthlyPayment,
+  formatEuro,
+  calculateEffortRate,
+  computeRiskGrade,
+  getLoyaltyStatus,
+} from '../utils/finance';
+import {
+  X,
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  Upload,
+  Trash2,
+  Zap,
+  ShieldCheck,
+  CreditCard,
+  Award,
+  Lock,
+} from 'lucide-react';
 
 interface DepositDossierModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitDossier: (dossier: Dossier) => void;
+  onSubmitDossier: (dossier: Dossier, paidAmount: number) => void;
   currentUser?: User | null;
   defaultType?: DossierType;
+  initialAmount?: number;
+  initialTerm?: number;
+  onOpenLoyalty?: () => void;
+}
+
+interface AttachedFile {
+  name: string;
+  sizeLabel: string;
 }
 
 export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
@@ -17,10 +46,14 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   onSubmitDossier,
   currentUser,
   defaultType = 'dette',
+  initialAmount,
+  initialTerm,
+  onOpenLoyalty,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Form State - 3 main dossier types requested by user
+  // Form State - 3 main dossier types
   const [type, setType] = useState<DossierType>(defaultType);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Particulier & Pro');
@@ -34,24 +67,138 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const [contextStory, setContextStory] = useState('');
   const [guaranteeType, setGuaranteeType] = useState('Caution solidaire ou retenue sur salaire');
 
-  // Applicant Profile
+  // Applicant Profile & Contact info
   const [applicantName, setApplicantName] = useState(currentUser?.name || '');
+  const [applicantEmail, setApplicantEmail] = useState(currentUser?.email || '');
+  const [applicantPhone, setApplicantPhone] = useState(currentUser?.phone || '');
   const [applicantPseudonym, setApplicantPseudonym] = useState(
     currentUser?.name ? `${currentUser.name.split(' ')[0]}_Direct` : ''
   );
   const [city, setCity] = useState(currentUser?.city || '');
   const [postalCode, setPostalCode] = useState(currentUser?.postalCode || '');
-  const [profession, setProfession] = useState('Salarié / Indépendant');
+  const [profession, setProfession] = useState(currentUser?.profession || 'Entrepreneur / Salarié');
   const [monthlyIncome, setMonthlyIncome] = useState<number>(2600);
   const [existingCharges, setExistingCharges] = useState<number>(800);
 
-  // Documents
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([
-    'Piece_identite_CNI.pdf',
-    'Avis_imposition_2025.pdf',
-  ]);
+  // Documents (real user attachments)
+  const [uploadedFiles, setUploadedFiles] = useState<AttachedFile[]>([]);
+
+  // Step 4 Publication Payment State
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setType(defaultType);
+      setPaymentError(null);
+      if (initialAmount && initialAmount >= 500) {
+        setAmountRequested(initialAmount);
+      }
+      if (initialTerm && initialTerm >= 12) {
+        setTermMonths(initialTerm);
+      }
+      if (currentUser) {
+        setApplicantName((prev) => prev || currentUser.name || '');
+        setApplicantEmail((prev) => prev || currentUser.email || '');
+        setApplicantPhone((prev) => prev || currentUser.phone || '');
+        setApplicantPseudonym((prev) => prev || `${currentUser.name.split(' ')[0]}_Direct`);
+        setCity((prev) => prev || currentUser.city || '');
+        setPostalCode((prev) => prev || currentUser.postalCode || '');
+        setProfession((prev) => prev || currentUser.profession || 'Entrepreneur / Salarié');
+      }
+    }
+  }, [isOpen, defaultType, initialAmount, initialTerm, currentUser]);
 
   if (!isOpen) return null;
+
+  const loyalty = getLoyaltyStatus(currentUser);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) {
+      return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const nextFiles: AttachedFile[] = Array.from(files).map((f) => ({
+      name: f.name,
+      sizeLabel: formatFileSize(f.size),
+    }));
+    setUploadedFiles((prev) => [...prev, ...nextFiles]);
+    e.target.value = '';
+  };
+
+  const applyPreset = (presetKey: 'credit' | 'tresorerie' | 'contentieux' | 'solidaire') => {
+    if (presetKey === 'credit') {
+      setType('dette');
+      setTitle('Regroupement & Apurement de crédits conso et découverts');
+      setCategory('Particulier / Refinancement');
+      setOriginalDebtAmount(16000);
+      setAmountRequested(12000);
+      setTargetDiscount(25);
+      setTermMonths(36);
+      setMaxMonthlyPayment(310);
+      setDescription(
+        "Restructuration complète de 2 crédits à la consommation et d'un découvert bancaire avec rachat au comptant décoté."
+      );
+      setContextStory(
+        'Salarié en CDI, je cherche à assainir ma situation financière en regroupant mes charges en une mensualité unique et supportable sous seing privé.'
+      );
+      setGuaranteeType('Engagement de prélèvement SEPA & cession sur salaire');
+    } else if (presetKey === 'tresorerie') {
+      setType('investissement');
+      setTitle("Besoin de trésorerie d'exploitation et outillage professionnel");
+      setCategory('Artisanat & BTP');
+      setAmountRequested(15000);
+      setTargetInterestRate(6.5);
+      setTermMonths(24);
+      setMaxMonthlyPayment(670);
+      setDescription(
+        'Financement de matériel de chantier pour honorer de nouveaux contrats signés avec paiement des intérêts chaque mois.'
+      );
+      setContextStory(
+        "Artisan du bâtiment depuis 4 ans, activité rentable avec carnet de commandes plein. Délais bancaires trop longs, je sollicite un investisseur réactif."
+      );
+      setGuaranteeType('Nantissement de matériel professionnel & caution solidaire');
+    } else if (presetKey === 'contentieux') {
+      setType('dette');
+      setTitle("Apurement amiable d'une créance fournisseur avec décote comptant");
+      setCategory('Commerce de bouche');
+      setOriginalDebtAmount(10000);
+      setAmountRequested(7000);
+      setTargetDiscount(30);
+      setTermMonths(24);
+      setMaxMonthlyPayment(315);
+      setDescription(
+        'Règlement transactionnel sous seing privé avec le créancier pour éteindre le litige commercial et solder définitivement le dossier.'
+      );
+      setContextStory(
+        "Le créancier a accepté par écrit un accord transactionnel à 70% de la somme. Je recherche un financeur pour débloquer les 7 000 € au comptant."
+      );
+      setGuaranteeType("Protocole d'accord sous seing privé avec désistement d'instance");
+    } else {
+      setType('autre');
+      setTitle("Financement participatif de trésorerie d'urgence avec caution familiale");
+      setCategory('Particulier / Refinancement');
+      setAmountRequested(5000);
+      setTargetInterestRate(5.0);
+      setTermMonths(18);
+      setMaxMonthlyPayment(290);
+      setDescription(
+        'Prêt direct pour surmonter un aléa temporaire de trésorerie avec engagement ferme de remboursement.'
+      );
+      setContextStory(
+        "Revenus réguliers, suite à un imprévu j'ai besoin d'un prêt court terme direct sécurisé sans passer par le système bancaire classique."
+      );
+      setGuaranteeType("Caution solidaire d'un tiers solvable & engagement écrit");
+    }
+  };
 
   const estimatedMonthly = calculateMonthlyPayment(
     amountRequested,
@@ -59,67 +206,119 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     termMonths
   );
 
-  const platformRate = type === 'dette' ? 0.012 : 0.02;
-  const platformFee = Math.round(amountRequested * platformRate);
+  const effortRate = calculateEffortRate(monthlyIncome, existingCharges, estimatedMonthly);
+  const computedRiskGrade = computeRiskGrade(effortRate);
+  const resteAVivre = monthlyIncome - existingCharges - estimatedMonthly;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setPaymentError(null);
 
-    const newDossier: Dossier = {
-      id: `dos-${Date.now()}`,
-      title:
-        title ||
-        (type === 'dette'
-          ? 'Apurement de dette et rachat amiable'
-          : type === 'investissement'
-          ? 'Demande d\'investissement & développement'
-          : 'Dossier spécifique / Autre sujet'),
-      type,
-      category,
-      amountRequested: Number(amountRequested),
-      originalDebtAmount: type === 'dette' ? Number(originalDebtAmount) : undefined,
-      targetInterestRate: type === 'investissement' ? Number(targetInterestRate) : 5.5,
-      targetDiscount: type === 'dette' ? Number(targetDiscount) : undefined,
-      maxMonthlyPayment: Number(maxMonthlyPayment),
-      termMonths: Number(termMonths),
-      description:
-        description ||
-        `Dossier classé dans l'onglet ${
-          type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'
-        } pour négociation directe avec des investisseurs.`,
-      contextStory:
-        contextStory ||
-        'Exposé complet de la situation financière, du besoin de fonds et des engagements de remboursement.',
-      guaranteeType,
-      applicant: {
-        name: applicantName || currentUser?.name || 'Demandeur',
-        pseudonym: applicantPseudonym || `${(applicantName || 'Membre').split(' ')[0]}_Solv`,
-        city: city || currentUser?.city || 'France',
-        postalCode: postalCode || currentUser?.postalCode,
-        profession,
-        monthlyIncome: Number(monthlyIncome),
-        existingCharges: Number(existingCharges),
-        verifiedIdentity: true,
-        verifiedIncome: true,
-        riskGrade: 'A',
-      },
-      documents: uploadedFiles.map((name: string, i: number) => ({
-        id: `doc-new-${i}`,
-        name,
-        category: 'justificatif_dette',
-        size: '1.2 Mo',
-        verified: true,
-        date: new Date().toLocaleDateString('fr-FR'),
-      })),
-      status: 'open',
-      createdAt: new Date().toLocaleDateString('fr-FR'),
-      offersCount: 0,
-      urgency: 'prioritaire',
-    };
+    if (step !== 4) return;
 
-    onSubmitDossier(newDossier);
-    onClose();
-    setStep(1);
+    if (!contextStory.trim()) {
+      setPaymentError('Veuillez rédiger une explication détaillée de votre besoin.');
+      return;
+    }
+
+    if (
+      cardNumber.replace(/\s/g, '').length < 16 ||
+      expiry.length < 5 ||
+      cvc.length < 3
+    ) {
+      setPaymentError(
+        `Pour publier votre dossier (${formatEuro(loyalty.publicationPrice)}), veuillez renseigner une carte bancaire valide (16 chiffres, MM/AA et CVC).`
+      );
+      return;
+    }
+
+    setIsPublishing(true);
+    setTimeout(() => {
+      const nextExp = loyalty.active ? loyalty.exp + EXP_PER_DOSSIER : 0;
+      const projectedUser: User | undefined = currentUser
+        ? {
+            ...currentUser,
+            loyaltyExp: nextExp,
+          }
+        : undefined;
+      const updatedLoyalty = getLoyaltyStatus(projectedUser);
+
+      const newDossier: Dossier = {
+        id: `dos-${Date.now()}`,
+        title:
+          title ||
+          (type === 'dette'
+            ? 'Apurement de dette et rachat amiable'
+            : type === 'investissement'
+            ? "Demande d'investissement & développement"
+            : 'Dossier spécifique / Autre sujet'),
+        type,
+        category,
+        amountRequested: Number(amountRequested),
+        originalDebtAmount: type === 'dette' ? Number(originalDebtAmount) : undefined,
+        targetInterestRate: type === 'investissement' ? Number(targetInterestRate) : 5.5,
+        targetDiscount: type === 'dette' ? Number(targetDiscount) : undefined,
+        maxMonthlyPayment: Number(maxMonthlyPayment),
+        termMonths: Number(termMonths),
+        description:
+          description ||
+          `Dossier classé dans l'onglet ${
+            type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'
+          } pour négociation directe avec des investisseurs.`,
+        contextStory:
+          contextStory ||
+          'Exposé complet de la situation financière, du besoin de fonds et des engagements de remboursement.',
+        guaranteeType,
+        applicant: {
+          name: applicantName || currentUser?.name || 'Demandeur',
+          firstName:
+            currentUser?.firstName ||
+            (applicantName || currentUser?.name || 'Demandeur').split(' ')[0],
+          lastName:
+            currentUser?.lastName ||
+            (applicantName || currentUser?.name || '').split(' ').slice(1).join(' ') ||
+            undefined,
+          email: applicantEmail.trim() || currentUser?.email || '',
+          phone: applicantPhone.trim() || currentUser?.phone || '',
+          pseudonym: applicantPseudonym || `${(applicantName || 'Membre').split(' ')[0]}_Solv`,
+          city: city || currentUser?.city || 'France',
+          postalCode: postalCode || currentUser?.postalCode,
+          profession,
+          monthlyIncome: Number(monthlyIncome),
+          existingCharges: Number(existingCharges),
+          verifiedIdentity: uploadedFiles.length > 0,
+          verifiedIncome: uploadedFiles.length > 0,
+          riskGrade: computedRiskGrade,
+          loyaltyTier: updatedLoyalty.active ? updatedLoyalty.tier : undefined,
+          loyaltyTitle:
+            updatedLoyalty.active && updatedLoyalty.badgeTitle
+              ? updatedLoyalty.badgeTitle
+              : undefined,
+        },
+        documents: uploadedFiles.map((file, i) => ({
+          id: `doc-new-${Date.now()}-${i}`,
+          name: file.name,
+          category: 'justificatif_dette',
+          size: file.sizeLabel,
+          verified: true,
+          date: new Date().toLocaleDateString('fr-FR'),
+        })),
+        status: 'open',
+        createdAt: new Date().toLocaleDateString('fr-FR'),
+        offersCount: 0,
+        urgency: 'prioritaire',
+        publicationPaidAmount: loyalty.publicationPrice,
+      };
+
+      setIsPublishing(false);
+      onSubmitDossier(newDossier, loyalty.publicationPrice);
+      onClose();
+      setStep(1);
+      setUploadedFiles([]);
+      setCardNumber('');
+      setExpiry('');
+      setCvc('');
+    }, 850);
   };
 
   return (
@@ -129,19 +328,20 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
           <div>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-              Création d'un dossier · Étape {step} sur 4
+              Préparation gratuite · Étape {step} sur 4
             </span>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5">
-              {step === 1 && '1. Quel type de dossier déposez-vous ?'}
-              {step === 2 && '2. Montants, durée et conditions de remboursement'}
-              {step === 3 && '3. Situation financière & Garanties pour l\'investisseur'}
-              {step === 4 && '4. Description, justificatifs & Commission de 2%'}
+              {step === 1 && '1. Quel type de dossier préparez-vous ? (Gratuit)'}
+              {step === 2 && '2. Montants, durée et conditions (Gratuit)'}
+              {step === 3 && "3. Situation financière & Garanties (Gratuit)"}
+              {step === 4 && `4. Justificatifs & Publication en ligne (${formatEuro(loyalty.publicationPrice)})`}
             </h2>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -156,17 +356,22 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* STEP 1: Onglet de classement (Dette, Investissement, Autre sujet) */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* STEP 1 */}
           {step === 1 && (
             <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+                <span>
+                  Vous montez votre dossier <strong>100 % gratuitement</strong>. Le règlement de{' '}
+                  <strong>{formatEuro(loyalty.publicationPrice)}</strong> intervient uniquement à l'étape finale de mise en ligne.
+                </span>
+              </div>
+
               <label className="text-xs font-bold text-slate-800 block">
                 Sélectionnez l'onglet de classement pour votre dossier :
               </label>
 
-              {/* 3 tabs / categories */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. Dette */}
                 <div
                   onClick={() => setType('dette')}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
@@ -184,7 +389,6 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   </p>
                 </div>
 
-                {/* 2. Investissement */}
                 <div
                   onClick={() => setType('investissement')}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
@@ -202,7 +406,6 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   </p>
                 </div>
 
-                {/* 3. Autre sujet */}
                 <div
                   onClick={() => setType('autre')}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
@@ -221,6 +424,47 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 </div>
               </div>
 
+              <div className="pt-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 mb-2">
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Modèles fréquents (cliquez pour pré-remplir instantanément) :</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('credit')}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-slate-900 block">Rachat crédits & découverts</span>
+                    <span className="text-[10px] text-slate-500">12 000 € · Décote 25% · 36 mois</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('tresorerie')}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-slate-900 block">Trésorerie Pro / Artisan</span>
+                    <span className="text-[10px] text-slate-500">15 000 € · 6.5% · 24 mois</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('contentieux')}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-slate-900 block">Apurement contentieux</span>
+                    <span className="text-[10px] text-slate-500">7 000 € · Décote 30% · 24 mois</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('solidaire')}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-slate-900 block">Prêt solidaire personnel</span>
+                    <span className="text-[10px] text-slate-500">5 000 € · 5.0% · 18 mois</span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
                   Intitulé explicite de votre dossier *
@@ -232,8 +476,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                     type === 'dette'
                       ? 'Ex: Rachat de créance fournisseur et apurement sur 24 mois'
                       : type === 'investissement'
-                      ? 'Ex: Financement d\'un four professionnel pour boulangerie'
-                      : 'Ex: Financement solidaire pour reprise d\'activité'
+                      ? "Ex: Financement d'un four professionnel pour boulangerie"
+                      : "Ex: Financement solidaire pour reprise d'activité"
                   }
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -261,7 +505,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
             </div>
           )}
 
-          {/* STEP 2: Amounts & Repayment */}
+          {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -270,7 +514,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                     {type === 'dette'
                       ? 'Montant proposé pour le rachat (€)'
                       : type === 'investissement'
-                      ? 'Montant d\'investissement recherché (€)'
+                      ? "Montant d'investissement recherché (€)"
                       : 'Montant sollicité (€)'}
                   </label>
                   <input
@@ -362,7 +606,6 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 </div>
               </div>
 
-              {/* Monthly calculation check */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
                 <div>
                   <span className="text-slate-500 block">Mensualité théorique résultante :</span>
@@ -374,9 +617,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   <span className="text-slate-500 block">Budget mensuel :</span>
                   <span
                     className={`font-semibold ${
-                      estimatedMonthly <= maxMonthlyPayment
-                        ? 'text-emerald-700'
-                        : 'text-amber-700'
+                      estimatedMonthly <= maxMonthlyPayment ? 'text-emerald-700' : 'text-amber-700'
                     }`}
                   >
                     {estimatedMonthly <= maxMonthlyPayment
@@ -386,32 +627,25 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 </div>
               </div>
 
-              {/* Platform commission disclaimer (1.2% for dette, 2% for invest) */}
-              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs flex items-center justify-between text-amber-950">
+              <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs flex items-center justify-between text-emerald-950">
                 <div>
-                  <span className="font-semibold block">
-                    Commission SolvaPact ({type === 'dette' ? '1,2 % sur les dettes' : '2,0 %'}) :
-                  </span>
-                  <span className="text-[11px] text-amber-800">
-                    {type === 'dette'
-                      ? 'Tarif allégé à 1,2 % sur les règlements de dette pour faciliter l\'apurement.'
-                      : 'Prélevée sur la transaction pour la rédaction de l\'accord et le séquestre.'}
+                  <span className="font-semibold block">0 % de commission sur le montant financé</span>
+                  <span className="text-[11px] text-emerald-800">
+                    Vous recevrez 100 % du capital négocié. Seuls {formatEuro(loyalty.publicationPrice)} seront réglés à l'étape finale pour publier l'annonce.
                   </span>
                 </div>
-                <span className="font-bold tabular-nums text-sm">
-                  {formatEuro(platformFee)}
-                </span>
+                <span className="font-bold tabular-nums text-sm">0 %</span>
               </div>
             </div>
           )}
 
-          {/* STEP 3: Situation & Guarantees for investors */}
+          {/* STEP 3 */}
           {step === 3 && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Votre nom complet (confidentiel jusqu'à accord) *
+                    Prénom & Nom (visibles au clic sur « Négocier ») *
                   </label>
                   <input
                     type="text"
@@ -424,7 +658,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Pseudonyme public (affiché aux investisseurs) *
+                    Pseudonyme public *
                   </label>
                   <input
                     type="text"
@@ -436,11 +670,39 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Ville *
+                    E-mail / Gmail de contact pour négocier *
                   </label>
+                  <input
+                    type="email"
+                    required
+                    value={applicantEmail}
+                    onChange={(e) => setApplicantEmail(e.target.value)}
+                    placeholder="votre.nom@gmail.com"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Téléphone de contact pour négocier *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={applicantPhone}
+                    onChange={(e) => setApplicantPhone(e.target.value)}
+                    placeholder="06 12 34 56 78"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Ville *</label>
                   <input
                     type="text"
                     required
@@ -503,6 +765,42 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 </div>
               </div>
 
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck
+                    className={`w-5 h-5 shrink-0 ${
+                      effortRate <= 35
+                        ? 'text-emerald-600'
+                        : effortRate <= 45
+                        ? 'text-amber-600'
+                        : 'text-rose-600'
+                    }`}
+                  />
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      Indice de solvabilité estimé : Note {computedRiskGrade} ({effortRate}% d'effort)
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Reste à vivre après mensualité estimée :{' '}
+                      <strong className="text-slate-800">
+                        {formatEuro(Math.max(0, resteAVivre))} / mois
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`font-bold text-[11px] px-2.5 py-1 rounded-md border shrink-0 ${
+                    effortRate <= 35
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : effortRate <= 45
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}
+                >
+                  {effortRate <= 35 ? 'Profil Sain' : effortRate <= 45 ? 'Modéré' : "Taux d'effort élevé"}
+                </span>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
                   Garantie ou sûreté proposée pour sécuriser l'investisseur *
@@ -515,14 +813,11 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   onChange={(e) => setGuaranteeType(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
                 />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  Indispensable pour donner confiance aux investisseurs et obtenir une négociation rapide.
-                </span>
               </div>
             </div>
           )}
 
-          {/* STEP 4: Story, Documents & Review */}
+          {/* STEP 4: Story, Documents & Publication Payment (29,99 € minus Loyalty Discount) */}
           {step === 4 && (
             <div className="space-y-4">
               <div>
@@ -530,58 +825,185 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   Explication détaillée de votre besoin pour l'investisseur *
                 </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   required
-                  placeholder="Expliquez en détail pourquoi vous avez besoin de cet argent, comment vous allez l'utiliser, et comment vous garantissez le remboursement..."
+                  placeholder="Expliquez pourquoi vous sollicitez ce financement ou ce rachat de dette, et comment vous garantissez le remboursement..."
                   value={contextStory}
                   onChange={(e) => setContextStory(e.target.value)}
                   className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed"
                 />
               </div>
 
-              {/* Upload simulation */}
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Pièces justificatives déposées
+                  Pièces justificatives (optionnel)
                 </label>
-                <div className="p-3 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 flex flex-col items-center justify-center text-center">
-                  <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                  <p className="text-xs text-slate-600 font-medium">
-                    Ajoutez vos justificatifs (CNI, avis d'imposition, fiches de paie, justificatif de dette ou devis)
-                  </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <div className="p-3.5 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 text-left">
+                    <Upload className="w-5 h-5 text-slate-400 shrink-0" />
+                    <p className="text-xs text-slate-600">
+                      Joignez CNI, avis d'imposition, créance ou devis depuis votre appareil
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      setUploadedFiles((prev: string[]) => [
-                        ...prev,
-                        `Justificatif_complementaire_${prev.length + 1}.pdf`,
-                      ])
-                    }
-                    className="mt-2 px-3 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 shadow-2xs"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 shrink-0 cursor-pointer"
                   >
-                    + Ajouter une pièce justificative
+                    + Ajouter des fichiers
                   </button>
                 </div>
 
-                <div className="mt-2 space-y-1">
-                  {uploadedFiles.map((file: string, i: number) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between text-xs text-slate-600 px-3 py-1.5 bg-slate-100 rounded-md"
-                    >
-                      <span className="truncate">{file}</span>
-                      <span className="text-emerald-700 font-medium text-[11px]">Prêt à l'envoi</span>
-                    </div>
-                  ))}
-                </div>
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {uploadedFiles.map((file, i) => (
+                      <div
+                        key={`${file.name}-${i}`}
+                        className="flex items-center justify-between text-xs text-slate-700 px-3 py-1.5 bg-slate-100 rounded-md"
+                      >
+                        <span className="truncate font-medium">
+                          {file.name}{' '}
+                          <span className="text-slate-400 font-normal">({file.sizeLabel})</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setUploadedFiles((prev) => prev.filter((_, idx) => idx !== i))
+                          }
+                          className="text-slate-400 hover:text-rose-600 ml-2 p-0.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Classification recap */}
-              <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-700 flex items-center justify-between">
-                <span>Classement automatique :</span>
-                <span className="font-bold uppercase text-slate-900">
-                  Onglet {type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'}
-                </span>
+              {/* Publication Fee Checkout Box */}
+              <div className="p-4 rounded-2xl bg-slate-950 text-white space-y-3 border border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
+                      Frais uniques de publication en ligne
+                    </span>
+                    <h4 className="text-sm font-bold text-white">
+                      Mise en ligne dans l'onglet{' '}
+                      {type === 'dette'
+                        ? 'Dette'
+                        : type === 'investissement'
+                        ? 'Investissement'
+                        : 'Autre sujet'}
+                    </h4>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    {loyalty.discountPct > 0 && (
+                      <span className="text-xs text-slate-400 line-through block font-mono">
+                        {formatEuro(BASE_PUBLICATION_PRICE)}
+                      </span>
+                    )}
+                    <span className="text-xl font-black text-emerald-400 font-mono">
+                      {formatEuro(loyalty.publicationPrice)}
+                    </span>
+                  </div>
+                </div>
+
+                {loyalty.active ? (
+                  <div className="flex items-center justify-between text-xs bg-emerald-950/60 border border-emerald-700/60 px-3 py-2 rounded-xl text-emerald-200">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Award className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>
+                        {loyalty.discountPct > 0
+                          ? `Réduction fidélité -${loyalty.discountPct} % appliquée`
+                          : 'Compte Fidélité actif (Palier Bronze à 50 EXP)'}
+                      </span>
+                    </span>
+                    <span className="font-bold text-amber-300 shrink-0">
+                      +{EXP_PER_DOSSIER} EXP crédités
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl text-slate-300">
+                    <span>
+                      Astuce : activez le <strong>Compte Fidélité ({formatEuro(LOYALTY_ACTIVATION_PRICE)})</strong> pour gagner +{EXP_PER_DOSSIER} EXP par dossier et obtenir jusqu'à -23 %.
+                    </span>
+                    {onOpenLoyalty && (
+                      <button
+                        type="button"
+                        onClick={onOpenLoyalty}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shrink-0 cursor-pointer"
+                      >
+                        Voir Fidélité
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {paymentError && (
+                  <div className="p-2.5 rounded-lg bg-rose-950/90 border border-rose-700 text-xs text-rose-200 font-medium">
+                    {paymentError}
+                  </div>
+                )}
+
+                {/* Payment Card Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Numéro de carte bancaire *
+                    </label>
+                    <div className="relative">
+                      <CreditCard className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="4970 •••• •••• ••••"
+                        value={cardNumber}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+                          setCardNumber(raw.match(/.{1,4}/g)?.join(' ') || raw);
+                        }}
+                        className="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Expiration *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="MM/AA"
+                        value={expiry}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          setExpiry(raw.length >= 2 ? `${raw.slice(0, 2)}/${raw.slice(2)}` : raw);
+                        }}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        CVC *
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        placeholder="•••"
+                        value={cvc}
+                        onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -592,7 +1014,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStep((s: number) => (s - 1) as 1 | 2 | 3 | 4)}
-                className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Précédent</span>
@@ -605,7 +1027,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStep((s: number) => (s + 1) as 1 | 2 | 3 | 4)}
-                className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 flex items-center gap-1.5 shadow-sm"
+                className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <span>Étape suivante</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -613,10 +1035,23 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
             ) : (
               <button
                 type="submit"
-                className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 flex items-center gap-1.5 shadow-sm"
+                disabled={isPublishing}
+                className="px-6 py-2.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-lg flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
               >
-                <Check className="w-4 h-4" />
-                <span>Publier mon dossier dans l'onglet {type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'}</span>
+                {isPublishing ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                    <span>Publication en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <Check className="w-4 h-4" />
+                    <span>
+                      Payer {formatEuro(loyalty.publicationPrice)} et publier mon dossier
+                    </span>
+                  </>
+                )}
               </button>
             )}
           </div>

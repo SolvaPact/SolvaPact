@@ -130,11 +130,9 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
                   </li>
                 )}
                 <li>
-                  <strong>Commission de service SolvaPact ({isDebt ? '1,2%' : '2,0%'}) :</strong>{' '}
-                  <span className="font-mono tabular-nums text-amber-900 font-bold">
-                    {formatEuro(Math.round(offer.proposedAmount * (isDebt ? 0.012 : 0.02)))}
-                  </span>{' '}
-                  (Prélevée sur la transaction pour la sécurisation de l'accord et du protocole)
+                  <strong>Commission SolvaPact sur la transaction :</strong>{' '}
+                  <span className="font-mono tabular-nums text-emerald-800 font-bold">0 % (0 €)</span>{' '}
+                  — 100 % du capital accordé est net entre les parties.
                 </li>
               </ul>
             </section>
@@ -156,7 +154,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
                 Article 4 — Modalités de règlement & Déchéance du terme
               </h3>
               <p>
-                Les échéances sont exigibles le 5 de chaque mois civil par virement ou prélèvement bancaire SEPA. En cas de défaut de paiement d'une seule échéance non régularisée dans un délai de quinze (15) jours suivant mise en demeure restée infructueuse, la totalité du solde restant dû deviendra immédiatement et de plein droit exigible, sans autre formalité judiciaire.
+                Le versement du capital et les échéances mensuelles s'effectuent directement entre les parties, en dehors de la plateforme SolvaPact (virement bancaire ou moyen convenu entre elles), le 5 de chaque mois civil. En cas de défaut de paiement d'une seule échéance non régularisée dans un délai de quinze (15) jours suivant mise en demeure restée infructueuse, la totalité du solde restant dû deviendra immédiatement et de plein droit exigible.
               </p>
             </section>
 

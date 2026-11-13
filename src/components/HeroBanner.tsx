@@ -21,12 +21,17 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           {/* Left Column: Proposition */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-              <span>Plateforme P2P de Financement Direct</span>
-              <span aria-hidden="true">·</span>
-              <span>Rachat & Apurement de Dettes</span>
-              <span aria-hidden="true">·</span>
-              <span>Accords Amiables</span>
+            <div className="space-y-2">
+              <p className="text-sm sm:text-base font-extrabold tracking-tight text-emerald-700">
+                SolvaPact — La rencontre directe entre vos besoins et ceux qui peuvent agir.
+              </p>
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                <span>Plateforme P2P de Mise en Relation Directe</span>
+                <span aria-hidden="true">·</span>
+                <span>Rachat & Apurement de Dettes</span>
+                <span aria-hidden="true">·</span>
+                <span>0 % de commission</span>
+              </div>
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight text-balance leading-tight">
@@ -34,7 +39,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl">
-              SolvaPact met en relation directe porteurs de projets, personnes en quête de trésorerie ou cherchant à solder une dette avec des prêteurs et investisseurs privés. Échangez, négociez les taux ou les décotes, et formalisez un protocole d'accord sécurisé.
+              SolvaPact met en relation directe porteurs de projets, personnes en quête de trésorerie ou cherchant à solder une dette avec des investisseurs privés. Consultez un dossier, cliquez sur « Négocier » pour contacter son créateur (Gmail, e-mail, téléphone), puis effectuez vos virements en dehors du site.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -61,16 +66,16 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
                   {totalVolume}
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Engagés & restructurés
+                  Demandes présentées
                 </p>
               </div>
 
               <div>
                 <p className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
-                  100 %
+                  0 %
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Négociation directe sans intermédiaire
+                  Commission · Virements hors site
                 </p>
               </div>
 

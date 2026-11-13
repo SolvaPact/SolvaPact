@@ -1,19 +1,133 @@
-import { DossierType } from '../types';
+import { LoyaltyTier, User } from '../types';
 
-export const DEBT_COMMISSION_RATE = 0.012; // 1,2% sur les règlements de dettes
-export const INVEST_COMMISSION_RATE = 0.02; // 2,0% sur les investissements et projets
+export const BASE_PUBLICATION_PRICE = 29.99;
+export const LOYALTY_ACTIVATION_PRICE = 80;
+export const EXP_PER_DOSSIER = 10;
 
-export function getCommissionRate(type: DossierType = 'dette'): number {
-  return type === 'dette' ? DEBT_COMMISSION_RATE : INVEST_COMMISSION_RATE;
+const OWNER_GOLD_EMAILS = ['solvapact.vercel.app@gmail.com', 'hugolaumonier@gmail.com'];
+
+export function isOwnerGoldEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return OWNER_GOLD_EMAILS.includes(email.trim().toLowerCase());
 }
 
-export function calculatePlatformFee(principal: number, type: DossierType = 'dette'): number {
-  if (principal <= 0) return 0;
-  return Math.round(principal * getCommissionRate(type));
+export function applyOwnerGoldStatus(user: User): User {
+  if (!isOwnerGoldEmail(user.email)) return user;
+  return {
+    ...user,
+    loyaltyActive: true,
+    loyaltyExp: Math.max(user.loyaltyExp || 0, 300),
+    loyaltyActivatedAt: user.loyaltyActivatedAt || new Date().toLocaleDateString('fr-FR'),
+  };
 }
 
-export function calculateNetReceived(principal: number, type: DossierType = 'dette'): number {
-  return principal - calculatePlatformFee(principal, type);
+export interface LoyaltyStatus {
+  active: boolean;
+  exp: number;
+  tier: LoyaltyTier;
+  label: string;
+  badgeTitle: string;
+  discountPct: number;
+  publicationPrice: number;
+  nextTierLabel: string | null;
+  nextTierExp: number | null;
+  expToNextTier: number;
+}
+
+export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
+  const isOwner = isOwnerGoldEmail(user?.email);
+  const active = Boolean(user?.loyaltyActive) || isOwner;
+  const exp = isOwner ? Math.max(user?.loyaltyExp || 0, 300) : user?.loyaltyExp || 0;
+
+  if (!active) {
+    return {
+      active: false,
+      exp: 0,
+      tier: 'none',
+      label: 'Standard',
+      badgeTitle: '',
+      discountPct: 0,
+      publicationPrice: BASE_PUBLICATION_PRICE,
+      nextTierLabel: 'Compte Fidélité (80 €)',
+      nextTierExp: 50,
+      expToNextTier: 50,
+    };
+  }
+
+  let tier: LoyaltyTier = 'standard';
+  let label = 'Actif';
+  let badgeTitle = 'Membre Fidélité';
+  let discountPct = 0;
+  let nextTierLabel: string | null = 'Bronze (-10 %)';
+  let nextTierExp: number | null = 50;
+
+  if (exp >= 300) {
+    tier = 'gold';
+    label = 'Gold';
+    badgeTitle = 'Membre Certifié Gold';
+    discountPct = 23;
+    nextTierLabel = null;
+    nextTierExp = null;
+  } else if (exp >= 150) {
+    tier = 'silver';
+    label = 'Silver';
+    badgeTitle = 'Membre Fidèle Silver';
+    discountPct = 17;
+    nextTierLabel = 'Gold (-23 %)';
+    nextTierExp = 300;
+  } else if (exp >= 50) {
+    tier = 'bronze';
+    label = 'Bronze';
+    badgeTitle = 'Membre Fidèle';
+    discountPct = 10;
+    nextTierLabel = 'Silver (-17 %)';
+    nextTierExp = 150;
+  }
+
+  const publicationPrice =
+    Math.round(BASE_PUBLICATION_PRICE * (1 - discountPct / 100) * 100) / 100;
+
+  return {
+    active: true,
+    exp,
+    tier,
+    label,
+    badgeTitle,
+    discountPct,
+    publicationPrice,
+    nextTierLabel,
+    nextTierExp,
+    expToNextTier: nextTierExp ? Math.max(0, nextTierExp - exp) : 0,
+  };
+}
+
+export function getLoyaltyNameColorClass(tier?: LoyaltyTier, darkBackground = false): string {
+  if (tier === 'gold') {
+    return darkBackground ? 'text-amber-300 font-bold' : 'text-amber-500 font-bold';
+  }
+  if (tier === 'silver') {
+    return darkBackground ? 'text-slate-300 font-bold' : 'text-slate-500 font-bold';
+  }
+  if (tier === 'bronze') {
+    return darkBackground ? 'text-orange-400 font-bold' : 'text-amber-800 font-bold';
+  }
+  return darkBackground ? 'text-white font-semibold' : 'text-slate-900 font-semibold';
+}
+
+export function calculateEffortRate(
+  monthlyIncome: number,
+  existingCharges: number,
+  newMonthlyPayment: number
+): number {
+  if (!monthlyIncome || monthlyIncome <= 0) return 100;
+  return Math.round(((existingCharges + newMonthlyPayment) / monthlyIncome) * 100);
+}
+
+export function computeRiskGrade(effortRate: number): 'A' | 'B' | 'C' | 'D' {
+  if (effortRate <= 33) return 'A';
+  if (effortRate <= 42) return 'B';
+  if (effortRate <= 55) return 'C';
+  return 'D';
 }
 
 export function calculateMonthlyPayment(
@@ -92,16 +206,20 @@ export function generateAmortizationSchedule(
 }
 
 export function formatEuro(amount: number): string {
+  const hasCents = Math.abs(amount - Math.round(amount)) > 0.001;
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
     currency: 'EUR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
 export function formatPct(rate: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 2,
-  }).format(rate) + ' %';
+  return (
+    new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2,
+    }).format(rate) + ' %'
+  );
 }

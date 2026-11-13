@@ -1,38 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { Dossier, NegotiationThread, ActiveTab, Offer, ChatMessage, User, DossierType } from './types';
-import { INITIAL_DOSSIERS, INITIAL_NEGOTIATIONS } from './data/mockDossiers';
+import { Dossier, ActiveTab, User, DossierType } from './types';
 import { Header } from './components/Header';
 import { HeroBanner } from './components/HeroBanner';
 import { DossierCard } from './components/DossierCard';
 import { DossierDetailModal } from './components/DossierDetailModal';
+import { ContactCreatorModal } from './components/ContactCreatorModal';
 import { DepositDossierModal } from './components/DepositDossierModal';
-import { NegotiationRoom } from './components/NegotiationRoom';
-import { ContractModal } from './components/ContractModal';
 import { FinanceCalculator } from './components/FinanceCalculatorModal';
 import { AuthModal } from './components/AuthModal';
-import { SubscriptionModal } from './components/SubscriptionModal';
-import { AccessPaywallGate } from './components/AccessPaywallGate';
-import { FounderPayoutView } from './components/FounderPayoutView';
+import { AccountEntryGate } from './components/AccountEntryGate';
+import { PlatformDiscoveryView } from './components/PlatformDiscoveryView';
+import { LoyaltyModal } from './components/LoyaltyModal';
 import { HelpView } from './components/HelpView';
-import { formatEuro } from './utils/finance';
+import { MarketTrustSection } from './components/MarketTrustSection';
+import { SatisfactionSurveyModal } from './components/SatisfactionSurveyModal';
+import { DailyReportModal } from './components/DailyReportModal';
+import {
+  BASE_PUBLICATION_PRICE,
+  EXP_PER_DOSSIER,
+  LOYALTY_ACTIVATION_PRICE,
+  applyOwnerGoldStatus,
+  formatEuro,
+  getLoyaltyStatus,
+  isOwnerGoldEmail,
+} from './utils/finance';
 import {
   Search,
-  SlidersHorizontal,
   PlusCircle,
-  ShieldCheck,
   FileCheck,
-  CheckCircle2,
-  Coins,
-  ArrowRight,
-  TrendingUp,
   Inbox,
-  Sparkles,
-  HelpCircle,
   Banknote,
   PiggyBank,
   FolderOpen,
   Trash2,
+  MessageSquareHeart,
+  ExternalLink,
 } from 'lucide-react';
+
+function syncUserToAccountsStore(updatedUser: User) {
+  try {
+    const raw = localStorage.getItem('solvapact_accounts_v1');
+    if (!raw) return;
+    const accounts = JSON.parse(raw) as Record<string, User & { passwordHash?: string }>;
+    const key = updatedUser.email.toLowerCase();
+    if (accounts[key]) {
+      accounts[key] = { ...accounts[key], ...updatedUser };
+      localStorage.setItem('solvapact_accounts_v1', JSON.stringify(accounts));
+    }
+  } catch (err) {
+    console.error('Error syncing account store', err);
+  }
+}
 
 export default function App() {
   // Persistence in localStorage - CLEAN SLATE (no fake / test dossiers)
@@ -49,30 +67,22 @@ export default function App() {
     return [];
   });
 
-  const [negotiations, setNegotiations] = useState<NegotiationThread[]>(() => {
+  useEffect(() => {
     localStorage.removeItem('solvapact_negotiations');
-    // Clean any old mock statistics to start completely at 0
-    const oldStats = localStorage.getItem('solvapact_subscription_stats');
-    if (oldStats && (oldStats.includes('14') || oldStats.includes('388.6') || oldStats.includes('18'))) {
-      localStorage.removeItem('solvapact_subscription_stats');
-    }
-    const saved = localStorage.getItem('solvapact_negotiations_v2');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error loading negotiations from localStorage', e);
-      }
-    }
-    return [];
-  });
+    localStorage.removeItem('solvapact_negotiations_v2');
+    localStorage.removeItem('solvapact_subscription_stats');
+    localStorage.removeItem('solvapact_subscription_stats_v2');
+    localStorage.removeItem('solvapact_has_paid_access');
+    sessionStorage.removeItem('solvapact_founder_unlocked');
+  }, []);
 
-  // User Authentication
+  // User Authentication (Mandatory free account creation on entry)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('solvapact_user');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as User;
+        return applyOwnerGoldStatus(parsed);
       } catch (e) {
         console.error('Error loading user from localStorage', e);
       }
@@ -80,22 +90,24 @@ export default function App() {
     return null;
   });
 
-  // Mandatory Access Paywall State
-  const [hasPaidAccess, setHasPaidAccess] = useState<boolean>(() => {
-    return localStorage.getItem('solvapact_has_paid_access') === 'true';
+  const [showOnboardingGuide, setShowOnboardingGuide] = useState<boolean>(() => {
+    const saved = localStorage.getItem('solvapact_user');
+    if (!saved) return false;
+    try {
+      const parsed = JSON.parse(saved) as User;
+      return localStorage.getItem(`solvapact_guide_done_${parsed.id}`) !== 'true';
+    } catch {
+      return false;
+    }
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
   const [pendingActionAfterAuth, setPendingActionAfterAuth] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     localStorage.setItem('solvapact_dossiers_v2', JSON.stringify(dossiers));
   }, [dossiers]);
-
-  useEffect(() => {
-    localStorage.setItem('solvapact_negotiations_v2', JSON.stringify(negotiations));
-  }, [negotiations]);
 
   useEffect(() => {
     if (currentUser) {
@@ -105,22 +117,22 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Tab & Persona State
+  // Tab & Modals State
   const [activeTab, setActiveTab] = useState<ActiveTab>('explorer');
-  const userRole = currentUser?.role || 'investisseur';
-
-  // Selected thread & modals
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
-    negotiations[0]?.id || null
-  );
-  const [viewingContractThread, setViewingContractThread] = useState<NegotiationThread | null>(null);
   const [selectedDossierForDetail, setSelectedDossierForDetail] = useState<Dossier | null>(null);
+  const [contactDossier, setContactDossier] = useState<Dossier | null>(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [depositDefaultType, setDepositDefaultType] = useState<DossierType>('dette');
+  const [depositPrefill, setDepositPrefill] = useState<{ amount?: number; term?: number }>({});
+  const [confirmClearTests, setConfirmClearTests] = useState(false);
+  const [surveyDossier, setSurveyDossier] = useState<Dossier | null>(null);
+  const [surveyPaidAmount, setSurveyPaidAmount] = useState<number>(BASE_PUBLICATION_PRICE);
+  const [isDailyReportOpen, setIsDailyReportOpen] = useState(false);
 
   // Search & Filtering State
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [categoryFilter] = useState<string>('all');
+  const [amountRange, setAmountRange] = useState<'all' | 'small' | 'medium' | 'large'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'amount_asc' | 'amount_desc'>('recent');
 
   // Filter dossiers according to current view / tab
@@ -138,6 +150,14 @@ export default function App() {
       list = list.filter((d) => d.category === categoryFilter);
     }
 
+    if (amountRange === 'small') {
+      list = list.filter((d) => d.amountRequested < 5000);
+    } else if (amountRange === 'medium') {
+      list = list.filter((d) => d.amountRequested >= 5000 && d.amountRequested <= 20000);
+    } else if (amountRange === 'large') {
+      list = list.filter((d) => d.amountRequested > 20000);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((d) => {
@@ -150,7 +170,7 @@ export default function App() {
       });
     }
 
-    return list.sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (sortBy === 'amount_asc') return a.amountRequested - b.amountRequested;
       if (sortBy === 'amount_desc') return b.amountRequested - a.amountRequested;
       return 0;
@@ -168,14 +188,6 @@ export default function App() {
     );
   });
 
-  // Calculate platform commissions generated on signed transactions (1.2% on debt, 2% on invest)
-  const signedNegotiations = negotiations.filter((n) => n.status === 'agreement_signed');
-  const totalCommissionsEarned = signedNegotiations.reduce(
-    (sum, n) =>
-      sum + Math.round(n.currentOffer.proposedAmount * (n.dossierType === 'dette' ? 0.012 : 0.02)),
-    0
-  );
-
   // Auth Guard Helper
   const requireAuth = (callback: () => void) => {
     if (!currentUser) {
@@ -186,313 +198,219 @@ export default function App() {
     }
   };
 
-  const handleAuthSuccess = (user: User) => {
-    setCurrentUser(user);
-    if (!user.isSubscribed) {
-      setIsSubscriptionModalOpen(true);
+  const handleEntryAuthSuccess = (user: User, isNewAccount: boolean) => {
+    const upgraded = applyOwnerGoldStatus(user);
+    setCurrentUser(upgraded);
+    const guideDone = localStorage.getItem(`solvapact_guide_done_${upgraded.id}`) === 'true';
+    if (isNewAccount || !guideDone) {
+      setShowOnboardingGuide(true);
+    } else {
+      setShowOnboardingGuide(false);
+      setActiveTab('explorer');
     }
+  };
+
+  const handleAuthSuccess = (user: User) => {
+    const upgraded = applyOwnerGoldStatus(user);
+    setCurrentUser(upgraded);
+    setShowOnboardingGuide(true);
     if (pendingActionAfterAuth) {
       pendingActionAfterAuth();
       setPendingActionAfterAuth(null);
     }
   };
 
-  const handleSubscriptionSuccess = (plan: 'demandeur' | 'investisseur', price: number) => {
-    if (currentUser) {
-      const updatedUser: User = {
-        ...currentUser,
-        isSubscribed: true,
-        subscriptionPlan: plan,
-        subscriptionPrice: price,
-        subscriptionNextBilling: 'Dans 30 jours',
-      };
-      setCurrentUser(updatedUser);
-      localStorage.setItem('solvapact_user', JSON.stringify(updatedUser));
-    }
+  const trackAnalyticsEvent = (payload: Record<string, unknown>) => {
+    fetch('/api/analytics/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch((err) => console.error('Analytics event tracking error:', err));
+  };
+
+  const isOwner = isOwnerGoldEmail(currentUser?.email);
+
+  const canMarkDossierAccepted = (dossier: Dossier): boolean => {
+    if (!currentUser) return false;
+    if (isOwner) return true;
+    const dossierEmail = dossier.applicant.email?.toLowerCase();
+    const userEmail = currentUser.email.toLowerCase();
+    return (
+      (Boolean(dossierEmail) && dossierEmail === userEmail) ||
+      dossier.applicant.name === currentUser.name
+    );
+  };
+
+  const handleMarkDossierAccepted = (dossier: Dossier) => {
+    if (dossier.status === 'agreement_reached') return;
+    setDossiers((prev) =>
+      prev.map((d) =>
+        d.id === dossier.id ? { ...d, status: 'agreement_reached' } : d
+      )
+    );
+    setSelectedDossierForDetail((prev) =>
+      prev && prev.id === dossier.id
+        ? { ...prev, status: 'agreement_reached' }
+        : prev
+    );
+    trackAnalyticsEvent({
+      type: 'dossier_accepted',
+      dossierId: dossier.id,
+      dossierTitle: dossier.title,
+      userName: currentUser?.name,
+      userEmail: currentUser?.email,
+    });
+  };
+
+  const handleActivateLoyalty = () => {
+    if (!currentUser) return;
+    const updatedUser: User = {
+      ...currentUser,
+      loyaltyActive: true,
+      loyaltyExp: currentUser.loyaltyExp || 0,
+      loyaltyActivatedAt: new Date().toLocaleDateString('fr-FR'),
+    };
+    setCurrentUser(updatedUser);
+    syncUserToAccountsStore(updatedUser);
+    trackAnalyticsEvent({
+      type: 'loyalty_created',
+      amount: LOYALTY_ACTIVATION_PRICE,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+    });
   };
 
   const handleDeleteDossier = (dossierId: string) => {
     setDossiers((prev) => prev.filter((d) => d.id !== dossierId));
   };
 
-  const handleDeleteNegotiation = (threadId: string) => {
-    setNegotiations((prev) => {
-      const updated = prev.filter((n) => n.id !== threadId);
-      if (selectedThreadId === threadId) {
-        setSelectedThreadId(updated[0]?.id || null);
-      }
-      return updated;
-    });
-  };
-
   const handleClearAllTests = () => {
-    if (window.confirm('Voulez-vous supprimer tous les dossiers et discussions de test ?')) {
-      setDossiers([]);
-      setNegotiations([]);
-      setSelectedThreadId(null);
-      localStorage.removeItem('solvapact_dossiers');
-      localStorage.removeItem('solvapact_negotiations');
-    }
+    setDossiers([]);
+    setConfirmClearTests(false);
+    localStorage.removeItem('solvapact_dossiers');
+    localStorage.removeItem('solvapact_negotiations');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setShowOnboardingGuide(false);
+    setIsDailyReportOpen(false);
+    setActiveTab('explorer');
   };
 
-  const handleOpenDepositWithType = (targetType: DossierType) => {
+  const handleOpenDepositWithType = (
+    targetType: DossierType,
+    prefillAmount?: number,
+    prefillTerm?: number
+  ) => {
     setDepositDefaultType(targetType);
+    setDepositPrefill({ amount: prefillAmount, term: prefillTerm });
     requireAuth(() => setIsDepositModalOpen(true));
   };
 
-  const handleStartNegotiation = (dossier: Dossier) => {
+  const handleOpenContact = (dossier: Dossier) => {
     requireAuth(() => {
-      let thread = negotiations.find((t) => t.dossierId === dossier.id);
-
-      if (!thread) {
-        const invName = currentUser ? currentUser.name : 'Investisseur';
-        const commissionRate = dossier.type === 'dette' ? 0.012 : 0.02;
-        const commissionAmount = Math.round(dossier.amountRequested * commissionRate);
-        const newThread: NegotiationThread = {
-          id: `neg-${Date.now()}`,
-          dossierId: dossier.id,
-          dossierTitle: dossier.title,
-          dossierType: dossier.type,
-          applicantName: dossier.applicant.name,
-          applicantPseudonym: dossier.applicant.pseudonym,
-          investorName: invName,
-          currentOffer: {
-            id: `off-${Date.now()}`,
-            dossierId: dossier.id,
-            investorName: invName,
-            proposedAmount: dossier.amountRequested,
-            platformFee: commissionAmount,
-            netAmountToApplicant: dossier.amountRequested - commissionAmount,
-            proposedInterestRate: dossier.targetInterestRate || 5.8,
-            proposedTermMonths: dossier.termMonths,
-            discountPercentage: dossier.targetDiscount,
-            proposedMonthlyPayment: dossier.maxMonthlyPayment,
-            conditions: `Accord sous seing privé avec commission SolvaPact de ${dossier.type === 'dette' ? '1,2%' : '2%'} et échéancier SEPA.`,
-            status: 'pending',
-            createdAt: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          },
-          offerHistory: [],
-          messages: [
-            {
-              id: `msg-init-1`,
-              senderRole: 'investisseur',
-              senderName: invName,
-              text: `Bonjour ${dossier.applicant.pseudonym}, votre dossier « ${dossier.title} » a retenu mon attention. Je suis prêt à discuter des modalités et formaliser un accord direct.`,
-              timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-            },
-          ],
-          status: 'active',
-          updatedAt: 'Aujourd\'hui',
-        };
-
-        setNegotiations((prev) => [newThread, ...prev]);
-        setSelectedThreadId(newThread.id);
-      } else {
-        setSelectedThreadId(thread.id);
-      }
-
-      setActiveTab('negociations');
+      setContactDossier(dossier);
     });
   };
 
-  const handleSendMessage = (threadId: string, text: string) => {
-    setNegotiations((prev) =>
-      prev.map((thread) => {
-        if (thread.id !== threadId) return thread;
-
-        const role = currentUser?.role || 'investisseur';
-        const senderName = currentUser?.name || (role === 'investisseur' ? 'Investisseur' : thread.applicantName);
-
-        const newMsg: ChatMessage = {
-          id: `msg-${Date.now()}`,
-          senderRole: role,
-          senderName,
-          text,
-          timestamp: new Date().toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        };
-
-        return {
-          ...thread,
-          messages: [...thread.messages, newMsg],
-          updatedAt: 'À l\'instant',
-        };
-      })
-    );
-  };
-
-  const handleSubmitCounterOffer = (threadId: string, offerUpdate: Partial<Offer>) => {
-    setNegotiations((prev) =>
-      prev.map((thread) => {
-        if (thread.id !== threadId) return thread;
-
-        const amount = offerUpdate.proposedAmount || thread.currentOffer.proposedAmount;
-        const commissionRate = thread.dossierType === 'dette' ? 0.012 : 0.02;
-        const fee = Math.round(amount * commissionRate);
-
-        const updatedOffer: Offer = {
-          ...thread.currentOffer,
-          ...offerUpdate,
-          id: `off-${Date.now()}`,
-          platformFee: fee,
-          netAmountToApplicant: amount - fee,
-          status: 'pending',
-          createdAt: `Aujourd'hui à ${new Date().toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}`,
-        };
-
-        const role = currentUser?.role || 'investisseur';
-        const senderName = currentUser?.name || (role === 'investisseur' ? 'Investisseur' : thread.applicantName);
-
-        const counterMsg: ChatMessage = {
-          id: `msg-${Date.now()}`,
-          senderRole: role,
-          senderName,
-          text: `Nouvelle proposition formulée : ${formatEuro(
-            updatedOffer.proposedAmount
-          )} (Com. SolvaPact ${thread.dossierType === 'dette' ? '1,2%' : '2%'} : ${formatEuro(fee)}) à ${updatedOffer.proposedInterestRate}% sur ${
-            updatedOffer.proposedTermMonths
-          } mois. Mensualité calculée : ${formatEuro(
-            updatedOffer.proposedMonthlyPayment
-          )}/mois.`,
-          timestamp: new Date().toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          attachedOffer: updatedOffer,
-        };
-
-        return {
-          ...thread,
-          currentOffer: updatedOffer,
-          offerHistory: [...thread.offerHistory, thread.currentOffer],
-          messages: [...thread.messages, counterMsg],
-          updatedAt: 'À l\'instant',
-        };
-      })
-    );
-  };
-
-  const handleAcceptOffer = (threadId: string) => {
-    setNegotiations((prev) =>
-      prev.map((thread) => {
-        if (thread.id !== threadId) return thread;
-
-        const acceptedMsg: ChatMessage = {
-          id: `msg-acc-${Date.now()}`,
-          senderRole: 'system',
-          senderName: 'Protocole SolvaPact',
-          text: '✓ Accord validé par les deux parties. Commission de 2% enregistrée et protocole sous seing privé opposable généré.',
-          timestamp: new Date().toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        };
-
-        const updated: NegotiationThread = {
-          ...thread,
-          status: 'agreement_signed',
-          currentOffer: {
-            ...thread.currentOffer,
-            status: 'accepted',
-          },
-          messages: [...thread.messages, acceptedMsg],
-          updatedAt: 'Signé',
-        };
-
-        setViewingContractThread(updated);
-        return updated;
-      })
-    );
-
-    const targetThread = negotiations.find((t) => t.id === threadId);
-    if (targetThread) {
-      setDossiers((prev) =>
-        prev.map((d) =>
-          d.id === targetThread.dossierId ? { ...d, status: 'agreement_reached' } : d
-        )
-      );
-    }
-  };
-
-  const handleCreateDossier = (newDossier: Dossier) => {
+  const handleCreateDossier = (newDossier: Dossier, paidAmount: number) => {
     setDossiers((prev) => [newDossier, ...prev]);
-    // Redirect directly into the corresponding tab!
+
+    // Award +10 EXP if Loyalty Account is active
+    if (currentUser?.loyaltyActive) {
+      const nextExp = (currentUser.loyaltyExp || 0) + EXP_PER_DOSSIER;
+      const updatedUser: User = {
+        ...currentUser,
+        loyaltyExp: nextExp,
+      };
+      setCurrentUser(updatedUser);
+      syncUserToAccountsStore(updatedUser);
+    }
+
+    trackAnalyticsEvent({
+      type: 'dossier_published',
+      dossierId: newDossier.id,
+      dossierTitle: newDossier.title,
+      amount: paidAmount,
+      userName: currentUser?.name,
+      userEmail: currentUser?.email,
+    });
+
     setActiveTab(newDossier.type as ActiveTab);
+    setSurveyPaidAmount(paidAmount);
+    setSurveyDossier(newDossier);
   };
 
-  const handleUnlockAccess = (
-    plan: 'demandeur' | 'investisseur',
-    price: number,
-    userEmail?: string
-  ) => {
-    setHasPaidAccess(true);
-    localStorage.setItem('solvapact_has_paid_access', 'true');
-    const newUser: User = {
-      id: `usr-${Date.now()}`,
-      name: userEmail ? userEmail.split('@')[0] : 'Membre SolvaPact',
-      email: userEmail || 'client@solvapact.fr',
-      role: plan,
-      city: 'France',
-      createdAt: new Date().toLocaleDateString('fr-FR'),
-      isSubscribed: true,
-      subscriptionPlan: plan,
-      subscriptionPrice: price,
-      subscriptionNextBilling: new Date(
-        Date.now() + 30 * 24 * 3600 * 1000
-      ).toLocaleDateString('fr-FR'),
-    };
-    setCurrentUser(newUser);
+  const handleSubmitSatisfaction = (rating: number, comment: string) => {
+    trackAnalyticsEvent({
+      type: 'satisfaction_review',
+      dossierId: surveyDossier?.id,
+      dossierTitle: surveyDossier?.title,
+      rating,
+      comment,
+      userName: currentUser?.name,
+      userEmail: currentUser?.email,
+    });
+    setSurveyDossier(null);
   };
 
-  const isFounderUser =
-    currentUser?.email === 'solvapact.vercel.app@gmail.com' ||
-    currentUser?.email === 'hugolaumonier@gmail.com' ||
-    sessionStorage.getItem('solvapact_founder_unlocked') === 'true';
+  // MANDATORY FREE ACCOUNT ENTRY GATE:
+  // Visitors must create an account (with Prénom, Nom, Email, Téléphone, Profession) or sign in first.
+  if (!currentUser) {
+    return <AccountEntryGate onAuthSuccess={handleEntryAuthSuccess} />;
+  }
 
-  // OBLIGATION DE PAIEMENT POUR ENTRER SUR LE SITE :
-  // Si le visiteur n'a pas payé son abonnement et n'est pas le fondateur, le portique payant bloque tout accès !
-  if (!hasPaidAccess && !isFounderUser && activeTab !== 'fondateur') {
+  // FULL-PAGE DISCOVERY GUIDE ON ACCOUNT ACTIVATION:
+  // User reads the complete guide page; scrolling to the bottom reveals the button to enter the site.
+  if (showOnboardingGuide) {
     return (
-      <AccessPaywallGate
-        onUnlockAccess={handleUnlockAccess}
-        onOpenFounderSpace={() => setActiveTab('fondateur')}
+      <PlatformDiscoveryView
+        currentUser={currentUser}
+        isOnboarding
+        onExploreMarketplace={() => {
+          localStorage.setItem(`solvapact_guide_done_${currentUser.id}`, 'true');
+          setShowOnboardingGuide(false);
+          setActiveTab('explorer');
+        }}
       />
     );
   }
 
+  const loyalty = getLoyaltyStatus(currentUser);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
-      {/* Top Header conforming to Top Bar Contract */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenDeposit={() => handleOpenDepositWithType('dette')}
         dossiers={dossiers}
-        activeNegotiationCount={negotiations.length}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
-        onOpenSubscription={() => setIsSubscriptionModalOpen(true)}
+        onOpenLoyalty={() => setIsLoyaltyModalOpen(true)}
+        onOpenDailyReport={isOwner ? () => setIsDailyReportOpen(true) : undefined}
       />
 
-      {/* Main Content Viewport */}
       <main className="flex-1">
+        {/* VIEW: DÉCOUVERTE / EXPLICATION DU SITE */}
+        {activeTab === 'decouverte' && (
+          <PlatformDiscoveryView
+            currentUser={currentUser}
+            onExploreMarketplace={() => setActiveTab('explorer')}
+            onOpenDeposit={() => handleOpenDepositWithType('dette')}
+            onOpenLoyalty={() => setIsLoyaltyModalOpen(true)}
+            onOpenHelp={() => setActiveTab('aide')}
+          />
+        )}
+
         {/* VIEW: EXPLORER / DETTE / INVESTISSEMENT / AUTRE */}
         {(activeTab === 'explorer' ||
           activeTab === 'dette' ||
           activeTab === 'investissement' ||
           activeTab === 'autre') && (
           <div>
-            {/* Hero banner shown on explorer */}
             {activeTab === 'explorer' && (
               <HeroBanner
                 onExplore={() => {
@@ -505,32 +423,36 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'explorer' && (
+              <MarketTrustSection
+                dossiers={dossiers}
+                onSelectDossier={(d) => setSelectedDossierForDetail(d)}
+                onStartNegotiation={(d) => handleOpenContact(d)}
+                onOpenDepositWithType={(type) => handleOpenDepositWithType(type)}
+              />
+            )}
+
             <section id="catalogue-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              {/* Tab Header Banner */}
               <div className="mb-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-2xs">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
                       {activeTab === 'dette' && 'Onglet 1 · Dettes à régler & Rachats'}
-                      {activeTab === 'investissement' && 'Onglet 2 · Demandes d\'investissement & Projets'}
+                      {activeTab === 'investissement' && "Onglet 2 · Demandes d'investissement & Projets"}
                       {activeTab === 'autre' && 'Onglet 3 · Autres sujets & Besoins divers'}
                       {activeTab === 'explorer' && 'Vue Globale · Tous les dossiers classés'}
                     </span>
                     <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                      {activeTab === 'dette' && 'Dossiers de rachat & d\'apurement de dette'}
-                      {activeTab === 'investissement' && 'Dossiers d\'investissement & financements'}
-                      {activeTab === 'autre' && 'Dossiers d\'autres sujets & accompagnements'}
-                      {activeTab === 'explorer' && 'Explorez l\'ensemble des dossiers disponibles'}
+                      {activeTab === 'dette' && "Dossiers de rachat & d'apurement de dette"}
+                      {activeTab === 'investissement' && "Dossiers d'investissement & financements"}
+                      {activeTab === 'autre' && "Dossiers d'autres sujets & accompagnements"}
+                      {activeTab === 'explorer' && "Explorez l'ensemble des dossiers disponibles"}
                     </h2>
                     <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                      {activeTab === 'dette' &&
-                        'Les débiteurs y déposent leurs créances avec proposition de décote ou d\'étalement pour que des créanciers ou investisseurs les rachètent comptant.'}
-                      {activeTab === 'investissement' &&
-                        'Porteurs de projets, artisans, commerçants ou particuliers cherchant des fonds en contrepartie d\'une rémunération d\'intérêt négociable.'}
-                      {activeTab === 'autre' &&
-                        'Besoins solidaires, restructurations amiables spécifiques, médiations et projets hors cadre bancaire.'}
-                      {activeTab === 'explorer' &&
-                        'Chaque dossier créé se classe automatiquement dans l\'un des 3 onglets (Dette, Investissement, Autre sujet). Les investisseurs peuvent échanger directement.'}
+                      Préparation du dossier gratuite · Publication en ligne à{' '}
+                      <strong>{formatEuro(loyalty.publicationPrice)}</strong>{' '}
+                      {loyalty.discountPct > 0 ? `(Tarif ${loyalty.label} -${loyalty.discountPct} %)` : ''}{' '}
+                      · <strong>0 % de commission</strong> · Virements effectués entre vous en dehors du site.
                     </p>
                   </div>
 
@@ -546,7 +468,7 @@ export default function App() {
                           : 'dette'
                       )
                     }
-                    className="px-4 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2 shrink-0 self-start shadow-xs"
+                    className="px-4 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2 shrink-0 self-start shadow-xs cursor-pointer"
                   >
                     <PlusCircle className="w-4 h-4" />
                     <span>
@@ -567,7 +489,7 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-2 mt-6 pt-5 border-t border-slate-100">
                   <button
                     onClick={() => setActiveTab('dette')}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                       activeTab === 'dette'
                         ? 'bg-amber-600 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -579,7 +501,7 @@ export default function App() {
 
                   <button
                     onClick={() => setActiveTab('investissement')}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                       activeTab === 'investissement'
                         ? 'bg-emerald-700 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -594,7 +516,7 @@ export default function App() {
 
                   <button
                     onClick={() => setActiveTab('autre')}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                       activeTab === 'autre'
                         ? 'bg-indigo-700 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -608,7 +530,7 @@ export default function App() {
 
                   <button
                     onClick={() => setActiveTab('explorer')}
-                    className={`px-3 py-2 text-xs font-medium rounded-xl transition-all ${
+                    className={`px-3 py-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
                       activeTab === 'explorer'
                         ? 'bg-slate-900 text-white font-semibold'
                         : 'text-slate-500 hover:text-slate-800'
@@ -632,17 +554,33 @@ export default function App() {
                   />
                 </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                  <span className="text-slate-400">Trier :</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-slate-900"
-                  >
-                    <option value="recent">Plus récents</option>
-                    <option value="amount_asc">Montant croissant</option>
-                    <option value="amount_desc">Montant décroissant</option>
-                  </select>
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">Montant :</span>
+                    <select
+                      value={amountRange}
+                      onChange={(e) => setAmountRange(e.target.value as any)}
+                      className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer"
+                    >
+                      <option value="all">Tous montants</option>
+                      <option value="small">&lt; 5 000 € (Micro)</option>
+                      <option value="medium">5 000 € à 20 000 €</option>
+                      <option value="large">&gt; 20 000 € (Envergure)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">Trier :</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer"
+                    >
+                      <option value="recent">Plus récents</option>
+                      <option value="amount_asc">Montant croissant</option>
+                      <option value="amount_desc">Montant décroissant</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -654,8 +592,10 @@ export default function App() {
                       key={dossier.id}
                       dossier={dossier}
                       onSelect={(d) => setSelectedDossierForDetail(d)}
-                      onStartNegotiation={(d) => handleStartNegotiation(d)}
+                      onStartNegotiation={(d) => handleOpenContact(d)}
                       onDelete={handleDeleteDossier}
+                      canMarkAccepted={canMarkDossierAccepted(dossier)}
+                      onMarkAccepted={handleMarkDossierAccepted}
                     />
                   ))}
                 </div>
@@ -675,7 +615,7 @@ export default function App() {
                       : 'actuel'}
                   </h3>
                   <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                    L'application est toute neuve. Dès qu'un utilisateur remplit le formulaire de dépôt, le dossier est automatiquement classé ici et prêt pour les investisseurs.
+                    Préparez votre dossier gratuitement. Vous ne réglez {formatEuro(BASE_PUBLICATION_PRICE)} (ou tarif réduit Fidélité) qu'au moment de la publication en ligne.
                   </p>
                   <button
                     onClick={() =>
@@ -687,10 +627,10 @@ export default function App() {
                           : 'autre'
                       )
                     }
-                    className="mt-5 px-5 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors inline-flex items-center gap-2 shadow-xs"
+                    className="mt-5 px-5 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors inline-flex items-center gap-2 shadow-xs cursor-pointer"
                   >
                     <PlusCircle className="w-4 h-4" />
-                    <span>Déposer un dossier dans cet onglet</span>
+                    <span>Préparer un dossier gratuitement</span>
                   </button>
                 </div>
               )}
@@ -703,25 +643,47 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Mes dossiers déposés</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Mes dossiers publiés</h1>
                 <p className="text-xs text-slate-500 mt-1">
-                  Suivez vos demandes classées dans les onglets Dette, Investissement ou Autre sujet.
+                  Suivez vos demandes publiées dans les onglets Dette, Investissement ou Autre sujet.
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                {myDossiers.length > 0 && (
-                  <button
-                    onClick={handleClearAllTests}
-                    className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Effacer les tests</span>
-                  </button>
-                )}
+                {myDossiers.length > 0 &&
+                  (confirmClearTests ? (
+                    <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                      <span className="text-[11px] font-semibold text-rose-800">
+                        Tout effacer ?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllTests}
+                        className="px-2 py-0.5 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded transition-colors"
+                      >
+                        Oui
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClearTests(false)}
+                        className="px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:text-slate-900"
+                      >
+                        Non
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearTests(true)}
+                      className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Tout effacer</span>
+                    </button>
+                  ))}
                 <button
                   onClick={() => handleOpenDepositWithType('dette')}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 self-start shadow-xs"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 self-start shadow-xs cursor-pointer"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Nouveau dossier</span>
@@ -736,8 +698,10 @@ export default function App() {
                     key={dossier.id}
                     dossier={dossier}
                     onSelect={(d) => setSelectedDossierForDetail(d)}
-                    onStartNegotiation={(d) => handleStartNegotiation(d)}
+                    onStartNegotiation={(d) => handleOpenContact(d)}
                     onDelete={handleDeleteDossier}
+                    canMarkAccepted={canMarkDossierAccepted(dossier)}
+                    onMarkAccepted={handleMarkDossierAccepted}
                   />
                 ))}
               </div>
@@ -745,14 +709,14 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-lg mx-auto">
                 <FileCheck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <h3 className="text-base font-bold text-slate-900">
-                  Vous n'avez pas encore de dossier actif
+                  Vous n'avez pas encore de dossier publié
                 </h3>
                 <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                  Remplissez le formulaire de dépôt pour publier votre besoin dans l'onglet Dette, Investissement ou Autre sujet.
+                  Remplissez votre dossier gratuitement puis réglez {formatEuro(loyalty.publicationPrice)} à la dernière étape pour le publier.
                 </p>
                 <button
                   onClick={() => handleOpenDepositWithType('dette')}
-                  className="mt-5 px-5 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors inline-flex items-center gap-2 shadow-xs"
+                  className="mt-5 px-5 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors inline-flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Déposer un dossier</span>
@@ -762,72 +726,24 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: NÉGOCIATIONS EN DIRECT */}
-        {activeTab === 'negociations' && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">
-                  Espace de Négociation & Accords Amiables
-                </h1>
-                <p className="text-xs text-slate-500 mt-1">
-                  Échangez directement entre demandeurs et financeurs, formulez des contre-offres et ratifiez des protocoles d'accord juridiquement conformes.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {negotiations.length > 0 && (
-                  <button
-                    onClick={handleClearAllTests}
-                    className="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Effacer les tests</span>
-                  </button>
-                )}
-                <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                  <Coins className="w-4 h-4 text-amber-600" />
-                  <span>Commission plateforme de 2% retenue au succès</span>
-                </div>
-              </div>
-            </div>
-
-            <NegotiationRoom
-              threads={negotiations}
-              activeThreadId={selectedThreadId}
-              onSelectThread={(id) => setSelectedThreadId(id)}
-              onSendMessage={handleSendMessage}
-              onSubmitCounterOffer={handleSubmitCounterOffer}
-              onAcceptOffer={handleAcceptOffer}
-              onViewContract={(thread) => setViewingContractThread(thread)}
-              currentUserRole={userRole}
-              onDeleteThread={handleDeleteNegotiation}
-            />
-          </div>
-        )}
-
-        {/* VIEW: SIMULATEUR FINANCIER & 2% */}
+        {/* VIEW: SIMULATEUR FINANCIER */}
         {activeTab === 'simulateur' && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <FinanceCalculator
               onOpenDepositWithParams={(type, amount, term) => {
-                handleOpenDepositWithType(type === 'dette' ? 'dette' : 'investissement');
+                handleOpenDepositWithType(
+                  type === 'dette' ? 'dette' : 'investissement',
+                  amount,
+                  term
+                );
               }}
             />
           </div>
         )}
 
-        {/* VIEW: ESPACE FONDATEUR (MES 2%) */}
-        {activeTab === 'fondateur' && (
-          <FounderPayoutView
-            signedThreads={signedNegotiations}
-            founderEmail={currentUser?.email || 'solvapact.vercel.app@gmail.com'}
-          />
-        )}
-
-        {/* VIEW: CENTRE D'AIDE & CONTACT */}
+        {/* VIEW: CENTRE D'AIDE (SOLVASOLUTION IA + ESCALADE HUMAINE) */}
         {activeTab === 'aide' && (
-          <HelpView onNavigateToTab={setActiveTab} />
+          <HelpView onNavigateToTab={setActiveTab} currentUser={currentUser} />
         )}
       </main>
 
@@ -844,7 +760,16 @@ export default function App() {
       <DossierDetailModal
         dossier={selectedDossierForDetail}
         onClose={() => setSelectedDossierForDetail(null)}
-        onStartNegotiation={(d) => handleStartNegotiation(d)}
+        onOpenContact={(d) => handleOpenContact(d)}
+        canMarkAccepted={
+          selectedDossierForDetail ? canMarkDossierAccepted(selectedDossierForDetail) : false
+        }
+        onMarkAccepted={handleMarkDossierAccepted}
+      />
+
+      <ContactCreatorModal
+        dossier={contactDossier}
+        onClose={() => setContactDossier(null)}
       />
 
       <DepositDossierModal
@@ -853,63 +778,107 @@ export default function App() {
         onSubmitDossier={handleCreateDossier}
         currentUser={currentUser}
         defaultType={depositDefaultType}
+        initialAmount={depositPrefill.amount}
+        initialTerm={depositPrefill.term}
+        onOpenLoyalty={() => setIsLoyaltyModalOpen(true)}
       />
 
-      <ContractModal
-        thread={viewingContractThread}
-        onClose={() => setViewingContractThread(null)}
-      />
-
-      <SubscriptionModal
-        isOpen={isSubscriptionModalOpen}
-        onClose={() => setIsSubscriptionModalOpen(false)}
+      <LoyaltyModal
+        isOpen={isLoyaltyModalOpen}
+        onClose={() => setIsLoyaltyModalOpen(false)}
         currentUser={currentUser}
-        onSubscriptionSuccess={handleSubscriptionSuccess}
+        onActivateLoyalty={handleActivateLoyalty}
       />
 
-      {/* Clean Unboxed Footer */}
-      <footer className="bg-white border-t border-slate-200 py-8 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-900">SolvaPact</span>
-            <span aria-hidden="true">·</span>
-            <button
-              onClick={() => setActiveTab('aide')}
-              className="text-slate-600 hover:text-slate-900 underline transition-colors"
-            >
-              Aide & Contact (solvapact.vercel.app@gmail.com)
-            </button>
-            <span aria-hidden="true">·</span>
-            {isFounderUser && (
-              <>
-                <span aria-hidden="true">·</span>
-                <button
-                  onClick={() => setActiveTab('fondateur')}
-                  className="text-amber-800 hover:text-amber-950 font-bold bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded transition-colors"
-                >
-                  🏦 Espace Fondateur (Saisie IBAN & MRR)
-                </button>
-                <span aria-hidden="true">·</span>
-                <button
-                  onClick={() => {
-                    localStorage.removeItem('solvapact_has_paid_access');
-                    setHasPaidAccess(false);
-                  }}
-                  className="text-slate-400 hover:text-slate-700 underline transition-colors text-[11px]"
-                  title="Réactiver le portique de paiement pour vérifier l'expérience d'un nouvel arrivant"
-                >
-                  🔒 Tester le Portique Payant
-                </button>
-              </>
-            )}
+      <SatisfactionSurveyModal
+        dossier={surveyDossier}
+        paidAmount={surveyPaidAmount}
+        onSubmitReview={handleSubmitSatisfaction}
+        onSkip={() => setSurveyDossier(null)}
+      />
+
+      {isOwner && (
+        <DailyReportModal
+          isOpen={isDailyReportOpen}
+          onClose={() => setIsDailyReportOpen(false)}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Footer with Social Networks & Feedback */}
+      <footer className="bg-white border-t border-slate-200 py-10 text-xs text-slate-600">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          {/* Social Networks & Feedback Callout */}
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1 max-w-2xl">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                <MessageSquareHeart className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Suivez nos publications et partagez vos conseils</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Découvrez nos actualités, publications et annonces sur nos réseaux sociaux. Tous vos conseils, avis et retours pour améliorer SolvaPact sont pris avec grand plaisir et le plus grand sérieux.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <a
+                href="https://www.instagram.com/solvapact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-900 font-bold text-xs inline-flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <span>Instagram : @solvapact</span>
+                <ExternalLink className="w-3 h-3 text-slate-400" />
+              </a>
+
+              <a
+                href="https://www.facebook.com/search/top?q=Solva%20Pact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-900 font-bold text-xs inline-flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <span>Facebook : Solva Pact</span>
+                <ExternalLink className="w-3 h-3 text-slate-400" />
+              </a>
+
+              <a
+                href="https://www.linkedin.com/search/results/all/?keywords=Solva%20Pact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-900 font-bold text-xs inline-flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <span>LinkedIn : Solva Pact</span>
+                <ExternalLink className="w-3 h-3 text-slate-400" />
+              </a>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-400 text-[11px]">
-            <span>Articles 1892 & 2044 du Code Civil</span>
-            <span aria-hidden="true">·</span>
-            <span>Prêts & transactions sous seing privé</span>
-            <span aria-hidden="true">·</span>
-            <span>Confidentialité & Sécurité</span>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-slate-900">SolvaPact</span>
+              <span aria-hidden="true">·</span>
+              <button
+                onClick={() => setActiveTab('decouverte')}
+                className="text-slate-600 hover:text-slate-900 underline transition-colors cursor-pointer"
+              >
+                Découvrir le fonctionnement
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                onClick={() => setActiveTab('aide')}
+                className="text-slate-600 hover:text-slate-900 underline transition-colors cursor-pointer"
+              >
+                SolvaSolution IA & Contact (solvapact.vercel.app@gmail.com)
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 text-slate-400 text-[11px]">
+              <span>0 % de commission</span>
+              <span aria-hidden="true">·</span>
+              <span>Publication à 29,99 €</span>
+              <span aria-hidden="true">·</span>
+              <span>Articles 1892 & 2044 du Code Civil</span>
+            </div>
           </div>
         </div>
       </footer>
