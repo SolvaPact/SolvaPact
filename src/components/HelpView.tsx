@@ -33,13 +33,15 @@ interface AiChatMessage {
   role: 'user' | 'model';
   text: string;
   suggestHumanSupport?: boolean;
+  retryQuestion?: string;
 }
 
 const STARTER_QUESTIONS = [
+  'Aide-moi à rédiger et structurer mon dossier',
+  'Quel onglet choisir pour ma situation ?',
   'Combien coûte la publication d’un dossier ?',
   'Comment fonctionne le Compte Fidélité (80 €) ?',
   'Y a-t-il une commission sur les fonds ?',
-  'Quelle est la valeur juridique des accords ?',
 ];
 
 export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser }) => {
@@ -118,32 +120,53 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
     setChatInput('');
     setIsAiThinking(true);
 
-    try {
-      const response = await fetch('/api/solvasolution/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          history: nextHistory
-            .filter((m) => m.id !== 'welcome-solvasolution')
-            .slice(-10)
-            .map((m) => ({ role: m.role, text: m.text })),
-          userContext: currentUser
-            ? {
-                name: currentUser.name,
-                profession: currentUser.profession,
-                loyaltyTier: loyalty.label,
-                exp: loyalty.exp,
-              }
-            : undefined,
-        }),
-      });
+    const payload = JSON.stringify({
+      message: trimmed,
+      history: nextHistory
+        .filter((m) => m.id !== 'welcome-solvasolution')
+        .slice(-10)
+        .map((m) => ({ role: m.role, text: m.text })),
+      userContext: currentUser
+        ? {
+            name: currentUser.name,
+            profession: currentUser.profession,
+            loyaltyTier: loyalty.label,
+            exp: loyalty.exp,
+          }
+        : undefined,
+    });
 
-      const data = (await response.json()) as {
-        reply?: string;
-        error?: string;
-        suggestHumanSupport?: boolean;
-      };
+    try {
+      let response: Response | null = null;
+      let lastError: unknown = null;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          response = await fetch('/api/solvasolution/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+          });
+          if (response.status < 500) break;
+        } catch (err) {
+          lastError = err;
+        }
+        if (attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+        }
+      }
+
+      if (!response) {
+        throw lastError || new Error('Network unreachable');
+      }
+
+      const rawText = await response.text();
+      let data: { reply?: string; error?: string; suggestHumanSupport?: boolean } = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error('Invalid JSON response');
+      }
 
       const replyText =
         data.reply ||
@@ -157,6 +180,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
           role: 'model',
           text: replyText,
           suggestHumanSupport: Boolean(data.suggestHumanSupport || !response.ok),
+          retryQuestion: !response.ok ? trimmed : undefined,
         },
       ]);
     } catch {
@@ -165,8 +189,9 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
         {
           id: `ai-err-${Date.now()}`,
           role: 'model',
-          text: "Connexion momentanément interrompue avec SolvaSolution. Vous pouvez transférer votre demande directement au responsable via le formulaire d'assistance humaine.",
+          text: "Connexion momentanément interrompue avec SolvaSolution (le serveur est peut-être en cours de réveil). Vous pouvez réessayer votre question ou la transférer directement au responsable.",
           suggestHumanSupport: true,
+          retryQuestion: trimmed,
         },
       ]);
     } finally {
@@ -277,7 +302,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Réponses instantanées sur vos dossiers, paiements à {formatEuro(BASE_PUBLICATION_PRICE)} et fidélité
+                  Accompagnement pas à pas pour votre dossier, tarifs ({formatEuro(BASE_PUBLICATION_PRICE)}) et fidélité
                 </p>
               </div>
             </div>
@@ -330,15 +355,30 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
                   {m.text}
                 </div>
 
-                {m.role === 'model' && m.suggestHumanSupport && (
-                  <button
-                    type="button"
-                    onClick={() => handleEscalateToHuman()}
-                    className="mt-2 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>Transférer cette demande directement au responsable ({ownerEmail})</span>
-                  </button>
+                {m.role === 'model' && (m.suggestHumanSupport || m.retryQuestion) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {m.retryQuestion && (
+                      <button
+                        type="button"
+                        disabled={isAiThinking}
+                        onClick={() => sendToSolvaSolution(m.retryQuestion!)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Réessayer</span>
+                      </button>
+                    )}
+                    {m.suggestHumanSupport && (
+                      <button
+                        type="button"
+                        onClick={() => handleEscalateToHuman()}
+                        className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Transférer cette demande directement au responsable ({ownerEmail})</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
