@@ -1,0 +1,538 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Hardened Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdminByEmail() {
+      return isVerifiedUser()
+        && request.auth.token.email is string
+        && (
+          request.auth.token.email == 'hugolaumonier@gmail.com'
+          || request.auth.token.email == 'solvapact.vercel.app@gmail.com'
+        );
+    }
+
+    function isAdmin() {
+      return isAdminByEmail()
+        || (isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidOptionalNumber(data, key, minVal, maxVal) {
+      return !(key in data) || (data[key] is number && data[key] >= minVal && data[key] <= maxVal);
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'city', 'loyaltyActive', 'loyaltyExp', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'name', 'firstName', 'lastName', 'email', 'phone', 'profession',
+          'role', 'city', 'postalCode', 'reasonForJoining', 'loyaltyActive',
+          'loyaltyExp', 'loyaltyActivatedAt', 'diamondPublicationsCount',
+          'acceptedTermsAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.role in ['demandeur', 'investisseur']
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.loyaltyActive is bool
+        && data.loyaltyExp is number && data.loyaltyExp >= 0 && data.loyaltyExp <= 100000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && isValidOptionalString(data, 'firstName', 60)
+        && isValidOptionalString(data, 'lastName', 60)
+        && isValidOptionalString(data, 'phone', 32)
+        && isValidOptionalString(data, 'profession', 100)
+        && isValidOptionalString(data, 'postalCode', 16)
+        && isValidOptionalString(data, 'reasonForJoining', 200)
+        && isValidOptionalString(data, 'loyaltyActivatedAt', 32)
+        && isValidOptionalNumber(data, 'diamondPublicationsCount', 0, 10000)
+        && isValidOptionalString(data, 'acceptedTermsAt', 32);
+    }
+
+    function isValidDossier(data) {
+      return data.keys().hasAll([
+          'id', 'ownerUid', 'title', 'type', 'category', 'amountRequested',
+          'maxMonthlyPayment', 'termMonths', 'description', 'contextStory',
+          'guaranteeType', 'applicant', 'documents', 'status', 'offersCount',
+          'urgency', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerUid', 'title', 'type', 'category', 'amountRequested',
+          'originalDebtAmount', 'targetInterestRate', 'targetDiscount',
+          'maxMonthlyPayment', 'termMonths', 'investmentReturnMode',
+          'equityPercentage', 'counterpartSummary', 'projectDetails',
+          'verifiedCompany', 'description', 'contextStory', 'guaranteeType',
+          'applicant', 'documents', 'status', 'createdAtLabel', 'offersCount',
+          'urgency', 'publicationPaidAmount', 'paymentVerifiedMode',
+          'isDiamondPriority', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerUid)
+        && data.title is string && data.title.size() >= 3 && data.title.size() <= 180
+        && data.type in ['dette', 'investissement', 'autre']
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 80
+        && data.amountRequested is number && data.amountRequested >= 500 && data.amountRequested <= 1000000
+        && data.maxMonthlyPayment is number && data.maxMonthlyPayment >= 0 && data.maxMonthlyPayment <= 200000
+        && data.termMonths is number && data.termMonths >= 6 && data.termMonths <= 120
+        && data.description is string && data.description.size() >= 3 && data.description.size() <= 600
+        && data.contextStory is string && data.contextStory.size() >= 3 && data.contextStory.size() <= 4000
+        && data.guaranteeType is string && data.guaranteeType.size() >= 1 && data.guaranteeType.size() <= 400
+        && data.applicant is map
+        && !('email' in data.applicant)
+        && !('phone' in data.applicant)
+        && data.documents is list && data.documents.size() <= 10
+        && (data.documents.size() == 0 || data.documents[0] is map)
+        && data.status in ['open', 'in_negotiation', 'agreement_reached', 'funded']
+        && data.offersCount is number && data.offersCount >= 0 && data.offersCount <= 10000
+        && data.urgency in ['normale', 'prioritaire', 'urgente']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && isValidOptionalNumber(data, 'originalDebtAmount', 0, 5000000)
+        && isValidOptionalNumber(data, 'targetInterestRate', 0, 30)
+        && isValidOptionalNumber(data, 'targetDiscount', 0, 90)
+        && (!( 'investmentReturnMode' in data ) || data.investmentReturnMode in ['remboursement', 'parts_sociales', 'redevance_ca', 'hybride'])
+        && isValidOptionalNumber(data, 'equityPercentage', 0, 100)
+        && isValidOptionalString(data, 'counterpartSummary', 400)
+        && (!( 'projectDetails' in data ) || data.projectDetails is map)
+        && (!( 'verifiedCompany' in data ) || data.verifiedCompany is map)
+        && isValidOptionalString(data, 'createdAtLabel', 32)
+        && isValidOptionalNumber(data, 'publicationPaidAmount', 0, 500)
+        && isValidOptionalString(data, 'paymentVerifiedMode', 40)
+        && (!( 'isDiamondPriority' in data ) || data.isDiamondPriority is bool);
+    }
+
+    function isValidPrivateContact(data) {
+      return data.keys().hasAll(['ownerUid', 'fullName', 'email', 'createdAt'])
+        && data.keys().hasOnly(['ownerUid', 'fullName', 'email', 'phone', 'createdAt'])
+        && isValidId(data.ownerUid)
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && isValidOptionalString(data, 'phone', 32)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAttachment(data) {
+      return data.keys().hasAll(['id', 'ownerUid', 'name', 'mimeType', 'sizeLabel', 'dataUrl', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerUid', 'name', 'mimeType', 'sizeLabel', 'dataUrl', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.ownerUid)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 180
+        && data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 80
+        && data.sizeLabel is string && data.sizeLabel.size() >= 1 && data.sizeLabel.size() <= 32
+        && data.dataUrl is string && data.dataUrl.size() <= 750000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNegotiation(data) {
+      return data.keys().hasAll([
+          'id', 'dossierId', 'dossierTitle', 'dossierType', 'creatorUid',
+          'creatorPseudonym', 'investorUid', 'investorName', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'dossierId', 'dossierTitle', 'dossierType', 'creatorUid',
+          'creatorPseudonym', 'investorUid', 'investorName',
+          'sharedCreatorEmail', 'sharedCreatorPhone', 'status',
+          'proposedAmount', 'proposedTermMonths', 'proposedRateOrEquity',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.dossierId)
+        && data.dossierTitle is string && data.dossierTitle.size() >= 1 && data.dossierTitle.size() <= 180
+        && data.dossierType in ['dette', 'investissement', 'autre']
+        && isValidId(data.creatorUid)
+        && data.creatorPseudonym is string && data.creatorPseudonym.size() >= 1 && data.creatorPseudonym.size() <= 80
+        && isValidId(data.investorUid)
+        && data.investorName is string && data.investorName.size() >= 1 && data.investorName.size() <= 120
+        && data.status in ['active', 'agreement_signed', 'closed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && isValidOptionalString(data, 'sharedCreatorEmail', 160)
+        && isValidOptionalString(data, 'sharedCreatorPhone', 32)
+        && isValidOptionalNumber(data, 'proposedAmount', 0, 5000000)
+        && isValidOptionalNumber(data, 'proposedTermMonths', 1, 120)
+        && isValidOptionalString(data, 'proposedRateOrEquity', 120);
+    }
+
+    function isValidNegotiationMessage(data) {
+      return data.keys().hasAll(['id', 'senderUid', 'creatorUid', 'investorUid', 'senderName', 'senderRole', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'senderUid', 'creatorUid', 'investorUid', 'senderName', 'senderRole', 'text', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.senderUid)
+        && isValidId(data.creatorUid)
+        && isValidId(data.investorUid)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 120
+        && data.senderRole in ['demandeur', 'investisseur', 'system']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 2000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAnalyticsEvent(data) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'dateKey', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'userId', 'type', 'dateKey', 'dossierId', 'dossierTitle',
+          'amount', 'rating', 'comment', 'userName', 'userEmail', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.type in ['dossier_published', 'loyalty_created', 'dossier_accepted', 'satisfaction_review']
+        && data.dateKey is string && data.dateKey.size() == 10
+        && data.createdAt is timestamp
+        && isValidOptionalString(data, 'dossierId', 128)
+        && isValidOptionalString(data, 'dossierTitle', 180)
+        && isValidOptionalNumber(data, 'amount', 0, 1000000)
+        && isValidOptionalNumber(data, 'rating', 1, 5)
+        && isValidOptionalString(data, 'comment', 1000)
+        && isValidOptionalString(data, 'userName', 120)
+        && isValidOptionalString(data, 'userEmail', 160);
+    }
+
+    function isValidSupportTicket(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'email', 'subject', 'message', 'status', 'createdAt'])
+        && data.keys().hasOnly(['id', 'userId', 'name', 'email', 'subject', 'message', 'status', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.userId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 180
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 3000
+        && data.status in ['open', 'resolved']
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list, create, update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminByEmail();
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            incoming().loyaltyActive == false
+            && incoming().loyaltyExp == 0
+            && (!('diamondPublicationsCount' in incoming()) || incoming().diamondPublicationsCount == 0)
+          )
+        );
+
+      allow update: if isSignedIn() && isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(userId)
+            && (
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'name', 'firstName', 'lastName', 'phone', 'profession',
+                  'role', 'city', 'postalCode', 'reasonForJoining',
+                  'acceptedTermsAt', 'updatedAt'
+                ])
+              )
+              || (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'loyaltyActive', 'loyaltyActivatedAt', 'updatedAt'
+                ])
+                && incoming().loyaltyActive == true
+              )
+              || (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'loyaltyExp', 'diamondPublicationsCount', 'updatedAt'
+                ])
+                && incoming().loyaltyExp >= existing().loyaltyExp
+                && incoming().loyaltyExp <= existing().loyaltyExp + 10
+                && (!('diamondPublicationsCount' in incoming())
+                  || !('diamondPublicationsCount' in existing())
+                  || (incoming().diamondPublicationsCount >= existing().diamondPublicationsCount
+                      && incoming().diamondPublicationsCount <= existing().diamondPublicationsCount + 1))
+              )
+            )
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /dossiers/{dossierId} {
+      // Public non-PII marketplace catalog
+      allow get: if isValidId(dossierId);
+      allow list: if true;
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(dossierId)
+        && isValidDossier(incoming())
+        && incoming().id == dossierId
+        && incoming().ownerUid == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().offersCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() && isVerifiedUser()
+        && isValidId(dossierId)
+        && isValidDossier(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().status != 'funded'
+            && (
+              (
+                existing().ownerUid == request.auth.uid
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'status', 'updatedAt', 'title', 'description', 'contextStory',
+                  'guaranteeType', 'verifiedCompany', 'projectDetails'
+                ])
+              )
+              || (
+                existing().status in ['open', 'in_negotiation']
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'offersCount', 'status', 'updatedAt'
+                ])
+                && incoming().offersCount == existing().offersCount + 1
+                && incoming().status in ['open', 'in_negotiation']
+              )
+            )
+          )
+        );
+
+      allow delete: if isSignedIn() && isVerifiedUser()
+        && isValidId(dossierId)
+        && (existing().ownerUid == request.auth.uid || isAdmin());
+
+      match /privateContact/{docId} {
+        allow get: if isSignedIn() && isVerifiedUser()
+          && isValidId(dossierId) && isValidId(docId)
+          && (
+            get(/databases/$(database)/documents/dossiers/$(dossierId)).data.ownerUid == request.auth.uid
+            || isAdmin()
+          );
+        allow list: if false;
+
+        allow create: if isSignedIn() && isVerifiedUser()
+          && isValidId(dossierId) && docId == 'info'
+          && isValidPrivateContact(incoming())
+          && incoming().ownerUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/dossiers/$(dossierId))
+          && get(/databases/$(database)/documents/dossiers/$(dossierId)).data.ownerUid == request.auth.uid;
+
+        allow update: if isSignedIn() && isVerifiedUser()
+          && isValidId(dossierId) && docId == 'info'
+          && isValidPrivateContact(incoming())
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().createdAt == existing().createdAt
+          && (
+            (get(/databases/$(database)/documents/dossiers/$(dossierId)).data.ownerUid == request.auth.uid
+              && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'email', 'phone']))
+            || isAdmin()
+          );
+
+        allow delete: if isAdmin()
+          || (isSignedIn() && isVerifiedUser()
+            && get(/databases/$(database)/documents/dossiers/$(dossierId)).data.ownerUid == request.auth.uid);
+      }
+
+      match /attachments/{attachmentId} {
+        allow get: if isSignedIn() && isVerifiedUser() && isValidId(dossierId) && isValidId(attachmentId);
+        allow list: if isSignedIn() && isVerifiedUser();
+
+        allow create: if isSignedIn() && isVerifiedUser()
+          && isValidId(dossierId) && isValidId(attachmentId)
+          && isValidAttachment(incoming())
+          && incoming().id == attachmentId
+          && incoming().ownerUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/dossiers/$(dossierId))
+          && get(/databases/$(database)/documents/dossiers/$(dossierId)).data.ownerUid == request.auth.uid;
+
+        allow update: if false;
+
+        allow delete: if isAdmin()
+          || (isSignedIn() && isVerifiedUser()
+            && isValidId(dossierId) && isValidId(attachmentId)
+            && get(/databases/$(database)/documents/dossiers/$(dossierId)).data.ownerUid == request.auth.uid);
+      }
+    }
+
+    match /negotiations/{threadId} {
+      allow get: if isSignedIn() && isVerifiedUser() && isValidId(threadId)
+        && (
+          existing().creatorUid == request.auth.uid
+          || existing().investorUid == request.auth.uid
+          || isAdmin()
+        );
+
+      allow list: if isSignedIn() && isVerifiedUser()
+        && (
+          resource.data.creatorUid == request.auth.uid
+          || resource.data.investorUid == request.auth.uid
+          || isAdminByEmail()
+        );
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(threadId)
+        && isValidNegotiation(incoming())
+        && incoming().id == threadId
+        && incoming().investorUid == request.auth.uid
+        && incoming().status == 'active'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && !('sharedCreatorEmail' in incoming())
+        && !('sharedCreatorPhone' in incoming())
+        && exists(/databases/$(database)/documents/dossiers/$(incoming().dossierId))
+        && get(/databases/$(database)/documents/dossiers/$(incoming().dossierId)).data.ownerUid == incoming().creatorUid;
+
+      allow update: if isSignedIn() && isVerifiedUser()
+        && isValidId(threadId)
+        && isValidNegotiation(incoming())
+        && incoming().id == existing().id
+        && incoming().dossierId == existing().dossierId
+        && incoming().creatorUid == existing().creatorUid
+        && incoming().investorUid == existing().investorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().status != 'agreement_signed'
+            && (
+              (
+                existing().creatorUid == request.auth.uid
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'sharedCreatorEmail', 'sharedCreatorPhone', 'status',
+                  'proposedAmount', 'proposedTermMonths', 'proposedRateOrEquity', 'updatedAt'
+                ])
+              )
+              || (
+                existing().investorUid == request.auth.uid
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'status', 'proposedAmount', 'proposedTermMonths', 'proposedRateOrEquity', 'updatedAt'
+                ])
+              )
+            )
+          )
+        );
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isVerifiedUser() && isValidId(threadId) && isValidId(messageId)
+          && (
+            get(/databases/$(database)/documents/negotiations/$(threadId)).data.creatorUid == request.auth.uid
+            || get(/databases/$(database)/documents/negotiations/$(threadId)).data.investorUid == request.auth.uid
+            || isAdmin()
+          );
+
+        allow list: if isSignedIn() && isVerifiedUser()
+          && (
+            resource.data.creatorUid == request.auth.uid
+            || resource.data.investorUid == request.auth.uid
+            || isAdminByEmail()
+          );
+
+        allow create: if isSignedIn() && isVerifiedUser()
+          && isValidId(threadId) && isValidId(messageId)
+          && isValidNegotiationMessage(incoming())
+          && incoming().id == messageId
+          && incoming().senderUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/negotiations/$(threadId))
+          && get(/databases/$(database)/documents/negotiations/$(threadId)).data.creatorUid == incoming().creatorUid
+          && get(/databases/$(database)/documents/negotiations/$(threadId)).data.investorUid == incoming().investorUid
+          && (
+            incoming().creatorUid == request.auth.uid
+            || incoming().investorUid == request.auth.uid
+          );
+
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /analytics_events/{eventId} {
+      allow get: if isAdmin() && isValidId(eventId);
+      allow list: if isAdminByEmail();
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(eventId)
+        && isValidAnalyticsEvent(incoming())
+        && incoming().id == eventId
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /support_tickets/{ticketId} {
+      allow get: if isSignedIn() && isVerifiedUser() && isValidId(ticketId)
+        && (existing().userId == request.auth.uid || isAdmin());
+
+      allow list: if isSignedIn() && isVerifiedUser()
+        && (resource.data.userId == request.auth.uid || isAdminByEmail());
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(ticketId)
+        && isValidSupportTicket(incoming())
+        && incoming().id == ticketId
+        && incoming().userId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if isAdmin();
+    }
+  }
+}

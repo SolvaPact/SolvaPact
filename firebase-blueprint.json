@@ -1,0 +1,555 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account profile and loyalty tier progression.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "firstName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "lastName": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "profession": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": ["demandeur", "investisseur"]
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "postalCode": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "reasonForJoining": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "loyaltyActive": {
+          "type": "boolean"
+        },
+        "loyaltyExp": {
+          "type": "number"
+        },
+        "loyaltyActivatedAt": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "diamondPublicationsCount": {
+          "type": "number"
+        },
+        "acceptedTermsAt": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "name", "email", "role", "city", "loyaltyActive", "loyaltyExp", "createdAt", "updatedAt"]
+    },
+    "DossierPublic": {
+      "title": "DossierPublic",
+      "description": "Publicly browsable non-PII dossier listing on SolvaPact marketplace.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 180
+        },
+        "type": {
+          "type": "string",
+          "enum": ["dette", "investissement", "autre"]
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "amountRequested": {
+          "type": "number"
+        },
+        "originalDebtAmount": {
+          "type": "number"
+        },
+        "targetInterestRate": {
+          "type": "number"
+        },
+        "targetDiscount": {
+          "type": "number"
+        },
+        "maxMonthlyPayment": {
+          "type": "number"
+        },
+        "termMonths": {
+          "type": "number"
+        },
+        "investmentReturnMode": {
+          "type": "string",
+          "enum": ["remboursement", "parts_sociales", "redevance_ca", "hybride"]
+        },
+        "equityPercentage": {
+          "type": "number"
+        },
+        "counterpartSummary": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "projectDetails": {
+          "type": "object",
+          "properties": {}
+        },
+        "verifiedCompany": {
+          "type": "object",
+          "properties": {}
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "contextStory": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "guaranteeType": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "applicant": {
+          "type": "object",
+          "properties": {}
+        },
+        "documents": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "in_negotiation", "agreement_reached", "funded"]
+        },
+        "createdAtLabel": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "offersCount": {
+          "type": "number"
+        },
+        "urgency": {
+          "type": "string",
+          "enum": ["normale", "prioritaire", "urgente"]
+        },
+        "publicationPaidAmount": {
+          "type": "number"
+        },
+        "paymentVerifiedMode": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "isDiamondPriority": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerUid",
+        "title",
+        "type",
+        "category",
+        "amountRequested",
+        "maxMonthlyPayment",
+        "termMonths",
+        "description",
+        "contextStory",
+        "guaranteeType",
+        "applicant",
+        "documents",
+        "status",
+        "offersCount",
+        "urgency",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DossierPrivateContact": {
+      "title": "DossierPrivateContact",
+      "description": "Isolated PII contact details owned strictly by the dossier author.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "fullName", "email", "createdAt"]
+    },
+    "DossierAttachment": {
+      "title": "DossierAttachment",
+      "description": "Uploaded PDF or supporting document stored safely under the dossier.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "mimeType": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "sizeLabel": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "dataUrl": {
+          "type": "string",
+          "maxLength": 750000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "ownerUid", "name", "mimeType", "sizeLabel", "dataUrl", "createdAt"]
+    },
+    "NegotiationThread": {
+      "title": "NegotiationThread",
+      "description": "Private 1-to-1 negotiation thread between dossier owner and an interested investor.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dossierId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dossierTitle": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "dossierType": {
+          "type": "string",
+          "enum": ["dette", "investissement", "autre"]
+        },
+        "creatorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "creatorPseudonym": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "investorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "investorName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "sharedCreatorEmail": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "sharedCreatorPhone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "agreement_signed", "closed"]
+        },
+        "proposedAmount": {
+          "type": "number"
+        },
+        "proposedTermMonths": {
+          "type": "number"
+        },
+        "proposedRateOrEquity": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "dossierId",
+        "dossierTitle",
+        "dossierType",
+        "creatorUid",
+        "creatorPseudonym",
+        "investorUid",
+        "investorName",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NegotiationMessage": {
+      "title": "NegotiationMessage",
+      "description": "Message inside a private negotiation thread.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "creatorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "investorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "senderRole": {
+          "type": "string",
+          "enum": ["demandeur", "investisseur", "system"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "senderUid", "creatorUid", "investorUid", "senderName", "senderRole", "text", "createdAt"]
+    },
+    "AnalyticsEvent": {
+      "title": "AnalyticsEvent",
+      "description": "Platform activity event and satisfaction review visible only to admins.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["dossier_published", "loyalty_created", "dossier_accepted", "satisfaction_review"]
+        },
+        "dateKey": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "dossierId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "dossierTitle": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "amount": {
+          "type": "number"
+        },
+        "rating": {
+          "type": "number"
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "userName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "userEmail": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "type", "dateKey", "createdAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Customer support escalation ticket created by a verified user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "resolved"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "name", "email", "subject", "message", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profiles and loyalty tiers."
+    },
+    "/dossiers/{dossierId}": {
+      "schema": { "$ref": "#/entities/DossierPublic" },
+      "description": "Publicly browsable non-PII dossier listings."
+    },
+    "/dossiers/{dossierId}/privateContact/{docId}": {
+      "schema": { "$ref": "#/entities/DossierPrivateContact" },
+      "description": "Creator private contact details isolated from public dossier reads."
+    },
+    "/dossiers/{dossierId}/attachments/{attachmentId}": {
+      "schema": { "$ref": "#/entities/DossierAttachment" },
+      "description": "Uploaded PDF supporting files attached to a dossier."
+    },
+    "/negotiations/{threadId}": {
+      "schema": { "$ref": "#/entities/NegotiationThread" },
+      "description": "1-to-1 negotiation rooms restricted strictly to the dossier owner and the investor."
+    },
+    "/negotiations/{threadId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/NegotiationMessage" },
+      "description": "Messages belonging to a negotiation room."
+    },
+    "/analytics_events/{eventId}": {
+      "schema": { "$ref": "#/entities/AnalyticsEvent" },
+      "description": "Daily business analytics and satisfaction reviews restricted to verified admins."
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "Support escalation tickets submitted by verified members."
+    }
+  }
+}
