@@ -121,7 +121,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ invoice, onClose }) 
                     <div>{invoice.itemDescription}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">
                       {invoice.type === 'loyalty'
-                        ? 'Activation à vie du Compte Fidélité (+10 EXP par dossier, paliers -10 %, -17 % et -23 %)'
+                        ? 'Activation à vie du Compte Fidélité (+10 EXP par dossier, paliers -10 %, -17 %, -23 % et Diamond -45 % + 1 dossier offert / 5)'
                         : 'Publication de dossier sur SolvaPact (0 % de commission sur les fonds négociés)'}
                     </div>
                   </td>

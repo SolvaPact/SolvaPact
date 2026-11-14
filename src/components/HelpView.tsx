@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
+import solvaBackdrop from '../assets/images/solvasolution_ai_backdrop_1794656956781.jpg';
 import {
   BASE_PUBLICATION_PRICE,
   EXP_PER_DOSSIER,
@@ -144,15 +145,23 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
       let lastError: unknown = null;
 
       for (let attempt = 0; attempt < 2; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 22000);
         try {
           response = await fetch('/api/solvasolution/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: payload,
+            signal: controller.signal,
           });
+          window.clearTimeout(timeoutId);
           if (response.status < 500) break;
         } catch (err) {
+          window.clearTimeout(timeoutId);
           lastError = err;
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            break;
+          }
         }
         if (attempt === 0) {
           await new Promise((resolve) => setTimeout(resolve, 600));
@@ -193,7 +202,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
         {
           id: `ai-err-${Date.now()}`,
           role: 'model',
-          text: "Connexion momentanément interrompue avec SolvaSolution (le serveur est peut-être en cours de réveil). Vous pouvez réessayer votre question ou la transférer directement au responsable.",
+          text: "Connexion momentanément interrompue avec SolvaSolution (délai dépassé ou serveur en cours de réveil). Vous pouvez réessayer votre question ou la transférer directement au responsable.",
           suggestHumanSupport: true,
           retryQuestion: trimmed,
           isError: true,
@@ -227,8 +236,13 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
     };
 
     const transcript = includeAiTranscript ? buildTranscriptText() : undefined;
-    const subjectLine = `[Support SolvaPact] ${subjectMap[subject] || "Demande d'aide"}`;
-    const bodyContent = `Bonjour,\n\nNom : ${name}\nEmail : ${email}\nSujet : ${
+    const priorityPrefix = loyalty.isDiamond
+      ? '[PRIORITAIRE · MEMBRE OFFICIEL FIDÈLE DIAMOND] '
+      : '';
+    const subjectLine = `${priorityPrefix}[Support SolvaPact] ${subjectMap[subject] || "Demande d'aide"}`;
+    const bodyContent = `Bonjour,${
+      loyalty.isDiamond ? '\nStatut client : Membre Officiel Fidèle Diamond (Traitement prioritaire)' : ''
+    }\n\nNom : ${name}\nEmail : ${email}\nSujet : ${
       subjectMap[subject] || subject
     }\n\nMessage du client :\n${message}${
       transcript ? `\n\n--- Historique avec SolvaSolution (IA) ---\n${transcript}` : ''
@@ -246,7 +260,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim(),
-          subject: subjectMap[subject] || subject,
+          subject: `${priorityPrefix}${subjectMap[subject] || subject}`,
           message: message.trim(),
           aiTranscript: transcript,
         }),
@@ -340,64 +354,78 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
             ))}
           </div>
 
-          {/* Chat Feed */}
-          <div className="p-5 space-y-4 h-[380px] overflow-y-auto bg-white">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
-              >
-                <span className="text-[10px] font-semibold text-slate-400 mb-1">
-                  {m.role === 'user' ? currentUser?.firstName || 'Vous' : 'SolvaSolution · Assistant IA'}
-                </span>
+          {/* Chat Feed with Futuristic AI Backdrop */}
+          <div className="relative h-[400px] bg-slate-950 overflow-hidden">
+            <img
+              src={solvaBackdrop}
+              alt=""
+              aria-hidden="true"
+              referrerPolicy="no-referrer"
+              className="absolute inset-0 w-full h-full object-cover opacity-85 pointer-events-none select-none"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-b from-slate-950/55 via-slate-950/45 to-slate-950/70 pointer-events-none"
+            />
+
+            <div className="relative z-10 h-full overflow-y-auto p-5 space-y-4">
+              {messages.map((m) => (
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-line ${
-                    m.role === 'user'
-                      ? 'bg-slate-900 text-white rounded-tr-xs'
-                      : 'bg-slate-100 text-slate-800 rounded-tl-xs border border-slate-200/80'
-                  }`}
+                  key={m.id}
+                  className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
-                  {m.text}
-                </div>
-
-                {m.role === 'model' && (m.suggestHumanSupport || m.retryQuestion) && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {m.retryQuestion && (
-                      <button
-                        type="button"
-                        disabled={isAiThinking}
-                        onClick={() => sendToSolvaSolution(m.retryQuestion!)}
-                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Réessayer</span>
-                      </button>
-                    )}
-                    {m.suggestHumanSupport && (
-                      <button
-                        type="button"
-                        onClick={() => handleEscalateToHuman()}
-                        className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        <span>Transférer cette demande directement au responsable ({ownerEmail})</span>
-                      </button>
-                    )}
+                  <span className="text-[10px] font-semibold text-slate-300 mb-1 drop-shadow-xs">
+                    {m.role === 'user' ? currentUser?.firstName || 'Vous' : 'SolvaSolution · Assistant IA'}
+                  </span>
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-md ${
+                      m.role === 'user'
+                        ? 'bg-emerald-600 text-white rounded-tr-xs border border-emerald-400/30'
+                        : 'bg-slate-900/90 backdrop-blur-md text-slate-100 rounded-tl-xs border border-emerald-400/25'
+                    }`}
+                  >
+                    {m.text}
                   </div>
-                )}
-              </div>
-            ))}
 
-            {isAiThinking && (
-              <div className="flex items-start gap-2">
-                <div className="px-4 py-3 rounded-2xl rounded-tl-xs bg-slate-100 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-slate-900 rounded-full animate-spin" />
-                  <span>SolvaSolution rédige sa réponse...</span>
+                  {m.role === 'model' && (m.suggestHumanSupport || m.retryQuestion) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {m.retryQuestion && (
+                        <button
+                          type="button"
+                          disabled={isAiThinking}
+                          onClick={() => sendToSolvaSolution(m.retryQuestion!)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Réessayer</span>
+                        </button>
+                      )}
+                      {m.suggestHumanSupport && (
+                        <button
+                          type="button"
+                          onClick={() => handleEscalateToHuman()}
+                          className="px-3 py-1.5 rounded-lg bg-amber-50/95 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Transférer cette demande directement au responsable ({ownerEmail})</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
 
-            <div ref={chatEndRef} />
+              {isAiThinking && (
+                <div className="flex items-start gap-2">
+                  <div className="px-4 py-3 rounded-2xl rounded-tl-xs bg-slate-900/90 backdrop-blur-md border border-emerald-400/30 text-xs text-emerald-200 flex items-center gap-2 shadow-md">
+                    <div className="w-3.5 h-3.5 border-2 border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin" />
+                    <span>SolvaSolution rédige sa réponse...</span>
+                  </div>
+                </div>
+              )}
+
+              <div ref={chatEndRef} />
+            </div>
           </div>
 
           {/* Chat Input */}
@@ -444,6 +472,12 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
             <p className="text-xs text-slate-600 leading-relaxed">
               Si SolvaSolution ne peut pas résoudre votre question ou si votre dossier demande une étude personnalisée, votre message est envoyé directement à notre adresse :
             </p>
+
+            {loyalty.isDiamond && (
+              <div className="p-3 rounded-xl bg-cyan-50 border border-cyan-200 text-xs text-cyan-900 font-semibold">
+                ✦ Traitement prioritaire activé · Votre statut Membre Officiel Fidèle Diamond est transmis automatiquement avec votre ticket.
+              </div>
+            )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2">
               <span className="font-mono text-xs font-bold text-slate-900 truncate">
@@ -650,7 +684,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
               Comment fonctionne le Compte Fidélité à {formatEuro(LOYALTY_ACTIVATION_PRICE)} ?
             </h4>
             <p className="text-slate-600 leading-relaxed text-xs">
-              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 50 EXP = Bronze (-10 %), 150 EXP = Silver (-17 %), 300 EXP = Gold (-23 %). Chaque palier change la couleur du nom de votre compte.
+              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 50 EXP = Bronze (-10 %), 150 EXP = Silver (-17 %), 300 EXP = Gold (-23 %), 500 EXP = <strong>Diamond (-45 % soit 16,49 €, 1 dossier offert tous les 5 dossiers, titre Membre Officiel Fidèle Diamond, mise en avant et support prioritaires)</strong>.
             </p>
           </div>
 

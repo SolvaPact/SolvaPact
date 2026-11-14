@@ -37,9 +37,25 @@ export const DossierCard: React.FC<DossierCardProps> = ({
     ? 'text-emerald-800'
     : 'text-indigo-800';
 
+  const isDiamond = Boolean(
+    dossier.isDiamondPriority || dossier.applicant.loyaltyTier === 'diamond'
+  );
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-slate-300 transition-all hover:shadow-sm flex flex-col justify-between">
+    <div
+      className={`bg-white rounded-xl border p-5 transition-all hover:shadow-sm flex flex-col justify-between ${
+        isDiamond
+          ? 'border-cyan-300 hover:border-cyan-400 ring-1 ring-cyan-100'
+          : 'border-slate-200 hover:border-slate-300'
+      }`}
+    >
       <div>
+        {isDiamond && (
+          <div className="text-[11px] font-extrabold text-cyan-700 tracking-wide mb-1.5 flex items-center gap-1.5">
+            <span aria-hidden="true">✦</span>
+            <span>Membre Officiel Fidèle Diamond · Mise en avant prioritaire</span>
+          </div>
+        )}
         {/* Unboxed Metadata Header */}
         <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
           <div className="flex items-center gap-1.5 font-medium">

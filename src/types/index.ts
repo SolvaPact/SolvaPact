@@ -2,7 +2,7 @@ export type DossierType = 'dette' | 'investissement' | 'autre';
 
 export type RiskGrade = 'A' | 'B' | 'C' | 'D';
 
-export type LoyaltyTier = 'none' | 'standard' | 'bronze' | 'silver' | 'gold';
+export type LoyaltyTier = 'none' | 'standard' | 'bronze' | 'silver' | 'gold' | 'diamond';
 
 export interface ApplicantInfo {
   name: string;
@@ -53,6 +53,7 @@ export interface Dossier {
   offersCount: number;
   urgency: 'normale' | 'prioritaire' | 'urgente';
   publicationPaidAmount?: number;
+  isDiamondPriority?: boolean;
 }
 
 export interface User {
@@ -73,6 +74,7 @@ export interface User {
   loyaltyActive?: boolean;
   loyaltyExp?: number;
   loyaltyActivatedAt?: string;
+  diamondPublicationsCount?: number;
 }
 
 export interface Offer {

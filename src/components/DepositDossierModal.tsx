@@ -222,9 +222,10 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     }
 
     if (
-      cardNumber.replace(/\s/g, '').length < 16 ||
-      expiry.length < 5 ||
-      cvc.length < 3
+      !loyalty.isFreePublicationNow &&
+      (cardNumber.replace(/\s/g, '').length < 16 ||
+        expiry.length < 5 ||
+        cvc.length < 3)
     ) {
       setPaymentError(
         `Pour publier votre dossier (${formatEuro(loyalty.publicationPrice)}), veuillez renseigner une carte bancaire valide (16 chiffres, MM/AA et CVC).`
@@ -308,6 +309,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         offersCount: 0,
         urgency: 'prioritaire',
         publicationPaidAmount: loyalty.publicationPrice,
+        isDiamondPriority: updatedLoyalty.isDiamond || loyalty.isDiamond,
       };
 
       setIsPublishing(false);
@@ -334,7 +336,10 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
               {step === 1 && '1. Quel type de dossier préparez-vous ? (Gratuit)'}
               {step === 2 && '2. Montants, durée et conditions (Gratuit)'}
               {step === 3 && "3. Situation financière & Garanties (Gratuit)"}
-              {step === 4 && `4. Justificatifs & Publication en ligne (${formatEuro(loyalty.publicationPrice)})`}
+              {step === 4 &&
+                (loyalty.isFreePublicationNow
+                  ? '4. Justificatifs & Publication gratuite (Avantage Diamond 0 €)'
+                  : `4. Justificatifs & Publication en ligne (${formatEuro(loyalty.publicationPrice)})`)}
             </h2>
           </div>
 
@@ -917,11 +922,15 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 </div>
 
                 {loyalty.active ? (
-                  <div className="flex items-center justify-between text-xs bg-emerald-950/60 border border-emerald-700/60 px-3 py-2 rounded-xl text-emerald-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs bg-emerald-950/60 border border-emerald-700/60 px-3 py-2.5 rounded-xl text-emerald-200">
                     <span className="flex items-center gap-1.5 font-medium">
                       <Award className="w-4 h-4 text-amber-400 shrink-0" />
                       <span>
-                        {loyalty.discountPct > 0
+                        {loyalty.isFreePublicationNow
+                          ? 'Avantage Diamond : ce 5e dossier est 100 % OFFERT (0 €) !'
+                          : loyalty.isDiamond
+                          ? `Membre Officiel Fidèle Diamond (-45 %) · Prochain dossier offert dans ${loyalty.dossiersUntilFreePublication} publication(s)`
+                          : loyalty.discountPct > 0
                           ? `Réduction fidélité -${loyalty.discountPct} % appliquée`
                           : 'Compte Fidélité actif (Palier Bronze à 50 EXP)'}
                       </span>
@@ -933,7 +942,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                 ) : (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl text-slate-300">
                     <span>
-                      Astuce : activez le <strong>Compte Fidélité ({formatEuro(LOYALTY_ACTIVATION_PRICE)})</strong> pour gagner +{EXP_PER_DOSSIER} EXP par dossier et obtenir jusqu'à -23 %.
+                      Astuce : activez le <strong>Compte Fidélité ({formatEuro(LOYALTY_ACTIVATION_PRICE)})</strong> pour gagner +{EXP_PER_DOSSIER} EXP par dossier et obtenir jusqu'à -45 % + 1 dossier offert / 5.
                     </span>
                     {onOpenLoyalty && (
                       <button
@@ -953,57 +962,68 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   </div>
                 )}
 
-                {/* Payment Card Fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Numéro de carte bancaire *
-                    </label>
-                    <div className="relative">
-                      <CreditCard className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="4970 •••• •••• ••••"
-                        value={cardNumber}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
-                          setCardNumber(raw.match(/.{1,4}/g)?.join(' ') || raw);
-                        }}
-                        className="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                      />
-                    </div>
+                {/* Payment Card Fields (hidden when 5th Diamond dossier is 100% Free) */}
+                {loyalty.isFreePublicationNow ? (
+                  <div className="p-3.5 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-xs text-cyan-100 space-y-1">
+                    <p className="font-bold text-cyan-300">
+                      ✦ Dossier offert — Aucune carte bancaire requise
+                    </p>
+                    <p className="text-[11px] text-cyan-100/90 leading-relaxed">
+                      En tant que Membre Officiel Fidèle Diamond, votre 5e dossier est publié gratuitement (0 €) avec mise en avant prioritaire automatique.
+                    </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                        Expiration *
+                        Numéro de carte bancaire *
                       </label>
-                      <input
-                        type="text"
-                        placeholder="MM/AA"
-                        value={expiry}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/\D/g, '').slice(0, 4);
-                          setExpiry(raw.length >= 2 ? `${raw.slice(0, 2)}/${raw.slice(2)}` : raw);
-                        }}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                      />
+                      <div className="relative">
+                        <CreditCard className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="4970 •••• •••• ••••"
+                          value={cardNumber}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+                            setCardNumber(raw.match(/.{1,4}/g)?.join(' ') || raw);
+                          }}
+                          className="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                        CVC *
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={4}
-                        placeholder="•••"
-                        value={cvc}
-                        onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Expiration *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="MM/AA"
+                          value={expiry}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+                            setExpiry(raw.length >= 2 ? `${raw.slice(0, 2)}/${raw.slice(2)}` : raw);
+                          }}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          CVC *
+                        </label>
+                        <input
+                          type="password"
+                          maxLength={4}
+                          placeholder="•••"
+                          value={cvc}
+                          onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -1048,7 +1068,9 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                     <Lock className="w-3.5 h-3.5" />
                     <Check className="w-4 h-4" />
                     <span>
-                      Payer {formatEuro(loyalty.publicationPrice)} et publier mon dossier
+                      {loyalty.isFreePublicationNow
+                        ? 'Publier gratuitement (5e dossier Diamond offert)'
+                        : `Payer ${formatEuro(loyalty.publicationPrice)} et publier mon dossier`}
                     </span>
                   </>
                 )}

@@ -173,7 +173,9 @@ export default function App() {
     return [...list].sort((a, b) => {
       if (sortBy === 'amount_asc') return a.amountRequested - b.amountRequested;
       if (sortBy === 'amount_desc') return b.amountRequested - a.amountRequested;
-      return 0;
+      const aPriority = a.isDiamondPriority || a.applicant.loyaltyTier === 'diamond' ? 1 : 0;
+      const bPriority = b.isDiamondPriority || b.applicant.loyaltyTier === 'diamond' ? 1 : 0;
+      return bPriority - aPriority;
     });
   };
 
@@ -317,12 +319,17 @@ export default function App() {
   const handleCreateDossier = (newDossier: Dossier, paidAmount: number) => {
     setDossiers((prev) => [newDossier, ...prev]);
 
-    // Award +10 EXP if Loyalty Account is active
+    // Award +10 EXP if Loyalty Account is active & advance Diamond 5-dossier cycle
     if (currentUser?.loyaltyActive) {
+      const currentLoyalty = getLoyaltyStatus(currentUser);
       const nextExp = (currentUser.loyaltyExp || 0) + EXP_PER_DOSSIER;
+      const nextDiamondCount = currentLoyalty.isDiamond
+        ? (currentUser.diamondPublicationsCount || 0) + 1
+        : currentUser.diamondPublicationsCount || 0;
       const updatedUser: User = {
         ...currentUser,
         loyaltyExp: nextExp,
+        diamondPublicationsCount: nextDiamondCount,
       };
       setCurrentUser(updatedUser);
       syncUserToAccountsStore(updatedUser);

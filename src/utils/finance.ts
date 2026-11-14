@@ -32,12 +32,17 @@ export interface LoyaltyStatus {
   nextTierLabel: string | null;
   nextTierExp: number | null;
   expToNextTier: number;
+  isDiamond: boolean;
+  diamondPublicationsCount: number;
+  isFreePublicationNow: boolean;
+  dossiersUntilFreePublication: number | null;
 }
 
 export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
   const isOwner = isOwnerGoldEmail(user?.email);
   const active = Boolean(user?.loyaltyActive) || isOwner;
   const exp = isOwner ? Math.max(user?.loyaltyExp || 0, 300) : user?.loyaltyExp || 0;
+  const diamondCount = Math.max(0, user?.diamondPublicationsCount || 0);
 
   if (!active) {
     return {
@@ -51,6 +56,10 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
       nextTierLabel: 'Compte Fidélité (80 €)',
       nextTierExp: 50,
       expToNextTier: 50,
+      isDiamond: false,
+      diamondPublicationsCount: 0,
+      isFreePublicationNow: false,
+      dossiersUntilFreePublication: null,
     };
   }
 
@@ -61,13 +70,20 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
   let nextTierLabel: string | null = 'Bronze (-10 %)';
   let nextTierExp: number | null = 50;
 
-  if (exp >= 300) {
+  if (exp >= 500) {
+    tier = 'diamond';
+    label = 'Diamond';
+    badgeTitle = 'Membre Officiel Fidèle Diamond';
+    discountPct = 45;
+    nextTierLabel = null;
+    nextTierExp = null;
+  } else if (exp >= 300) {
     tier = 'gold';
     label = 'Gold';
     badgeTitle = 'Membre Certifié Gold';
     discountPct = 23;
-    nextTierLabel = null;
-    nextTierExp = null;
+    nextTierLabel = 'Diamond (-45 % + 1 dossier offert / 5)';
+    nextTierExp = 500;
   } else if (exp >= 150) {
     tier = 'silver';
     label = 'Silver';
@@ -84,8 +100,17 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
     nextTierExp = 150;
   }
 
-  const publicationPrice =
+  const isDiamond = tier === 'diamond';
+  const isFreePublicationNow = isDiamond && (diamondCount + 1) % 5 === 0;
+  const dossiersUntilFreePublication = isDiamond
+    ? isFreePublicationNow
+      ? 0
+      : 5 - ((diamondCount + 1) % 5)
+    : null;
+
+  const discountedPrice =
     Math.round(BASE_PUBLICATION_PRICE * (1 - discountPct / 100) * 100) / 100;
+  const publicationPrice = isFreePublicationNow ? 0 : discountedPrice;
 
   return {
     active: true,
@@ -98,10 +123,17 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
     nextTierLabel,
     nextTierExp,
     expToNextTier: nextTierExp ? Math.max(0, nextTierExp - exp) : 0,
+    isDiamond,
+    diamondPublicationsCount: diamondCount,
+    isFreePublicationNow,
+    dossiersUntilFreePublication,
   };
 }
 
 export function getLoyaltyNameColorClass(tier?: LoyaltyTier, darkBackground = false): string {
+  if (tier === 'diamond') {
+    return darkBackground ? 'text-cyan-300 font-extrabold' : 'text-cyan-600 font-extrabold';
+  }
   if (tier === 'gold') {
     return darkBackground ? 'text-amber-300 font-bold' : 'text-amber-500 font-bold';
   }

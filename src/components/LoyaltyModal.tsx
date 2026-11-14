@@ -43,7 +43,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
   if (!isOpen) return null;
 
   const loyalty = getLoyaltyStatus(currentUser);
-  const progressPct = Math.min(100, Math.round((loyalty.exp / 300) * 100));
+  const progressPct = Math.min(100, Math.round((loyalty.exp / 500) * 100));
   const accountColorDark = getLoyaltyNameColorClass(loyalty.tier, true);
 
   const buildInvoice = (): InvoiceData => {
@@ -55,7 +55,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
       date: currentUser?.loyaltyActivatedAt || new Date().toLocaleDateString('fr-FR'),
       customerName: currentUser?.name || 'Membre SolvaPact',
       customerEmail: currentUser?.email || 'membre@solvapact.vercel.app',
-      itemDescription: 'Activation à vie du Compte Fidélité SolvaPact (Paliers Bronze, Silver & Gold)',
+      itemDescription: 'Activation à vie du Compte Fidélité SolvaPact (Paliers Bronze, Silver, Gold & Diamond)',
       amountHT,
       vatRate,
       vatAmount,
@@ -90,13 +90,17 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 overflow-y-auto">
-        <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-6">
+        <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-6">
           {/* Header */}
           <div className="p-6 border-b border-slate-100 bg-slate-950 text-white flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">
                 <Award className="w-4 h-4" />
-                <span>Compte Fidélité SolvaPact</span>
+                <span>
+                  {loyalty.isDiamond
+                    ? 'Membre Officiel Fidèle Diamond · Compte Fidélité'
+                    : 'Compte Fidélité SolvaPact'}
+                </span>
               </div>
               <h2 className="text-xl font-bold">
                 {loyalty.active ? (
@@ -130,37 +134,42 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-900">
                   {loyalty.active
-                    ? `Réduction active sur vos publications : -${loyalty.discountPct} %`
+                    ? loyalty.isDiamond
+                      ? `Statut Membre Officiel Fidèle Diamond : -${loyalty.discountPct} % + 1 dossier offert / 5`
+                      : `Réduction active sur vos publications : -${loyalty.discountPct} %`
                     : 'Statut actuel : Compte Standard (Non activé)'}
                 </span>
                 <span className="font-mono font-bold text-slate-900">
-                  {loyalty.exp} / 300 EXP
+                  {loyalty.exp} / 500 EXP
                 </span>
               </div>
 
               <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-600 via-slate-500 to-amber-400 transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-amber-600 via-slate-500 via-amber-400 to-cyan-500 transition-all duration-500"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px] text-slate-500 font-medium">
                 <span>0 EXP</span>
                 <span className={loyalty.exp >= 50 ? 'text-amber-800 font-bold' : ''}>
-                  50 EXP · Bronze (-10 %)
+                  50 · Bronze (-10 %)
                 </span>
                 <span className={loyalty.exp >= 150 ? 'text-slate-700 font-bold' : ''}>
-                  150 EXP · Silver (-17 %)
+                  150 · Silver (-17 %)
                 </span>
                 <span className={loyalty.exp >= 300 ? 'text-amber-600 font-bold' : ''}>
-                  300 EXP · Gold (-23 %)
+                  300 · Gold (-23 %)
+                </span>
+                <span className={loyalty.exp >= 500 ? 'text-cyan-700 font-extrabold sm:text-right' : 'sm:text-right'}>
+                  500 · Diamond (-45 %)
                 </span>
               </div>
             </div>
 
-            {/* 3 Tiers Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            {/* 4 Tiers Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               <div
                 className={`p-4 rounded-xl border ${
                   loyalty.tier === 'bronze'
@@ -211,29 +220,81 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   -23 % permanents sur chaque publication ({formatEuro(23.09)}).
                 </p>
               </div>
+
+              <div
+                className={`p-4 rounded-xl border ${
+                  loyalty.tier === 'diamond'
+                    ? 'border-cyan-500 bg-cyan-50/80 ring-1 ring-cyan-300'
+                    : 'border-cyan-200 bg-gradient-to-b from-cyan-50/40 to-white'
+                } space-y-1.5`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-cyan-700">Diamond</span>
+                  <span className="font-mono text-[11px] font-extrabold text-cyan-800">500 EXP</span>
+                </div>
+                <p className="font-extrabold text-cyan-600">Membre Officiel Fidèle Diamond</p>
+                <p className="text-[11px] text-slate-700 leading-relaxed">
+                  <strong>-45 %</strong> ({formatEuro(16.49)}) + <strong>1 dossier offert (0 €)</strong> tous les 5 dossiers · mise en avant & support prioritaires.
+                </p>
+              </div>
             </div>
 
             {loyalty.active ? (
-              <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <div
+                className={`p-5 rounded-2xl border space-y-3 ${
+                  loyalty.isDiamond
+                    ? 'bg-cyan-50/70 border-cyan-300'
+                    : 'bg-emerald-50 border-emerald-200'
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div
+                    className={`flex items-center gap-2 font-bold text-sm ${
+                      loyalty.isDiamond ? 'text-cyan-950' : 'text-emerald-900'
+                    }`}
+                  >
+                    <CheckCircle2
+                      className={`w-5 h-5 ${
+                        loyalty.isDiamond ? 'text-cyan-600' : 'text-emerald-600'
+                      }`}
+                    />
                     <span>
                       {justActivated
                         ? 'Compte Fidélité activé avec succès !'
+                        : loyalty.isDiamond
+                        ? 'Statut actif : Membre Officiel Fidèle Diamond'
                         : 'Votre Compte Fidélité est actif à vie'}
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-800">
-                    Tarif publication actuel : {formatEuro(loyalty.publicationPrice)}
+                  <span
+                    className={`text-xs font-bold ${
+                      loyalty.isDiamond ? 'text-cyan-900' : 'text-emerald-800'
+                    }`}
+                  >
+                    {loyalty.isFreePublicationNow
+                      ? 'Prochain dossier : 0 € (5e dossier Diamond offert !)'
+                      : `Tarif publication actuel : ${formatEuro(loyalty.publicationPrice)}`}
                   </span>
                 </div>
 
-                <p className="text-xs text-emerald-800 leading-relaxed">
-                  {loyalty.nextTierLabel
-                    ? `Publiez encore ${Math.ceil(loyalty.expToNextTier / EXP_PER_DOSSIER)} dossier(s) (${loyalty.expToNextTier} EXP restants) pour débloquer le palier ${loyalty.nextTierLabel}.`
-                    : 'Votre compte bénéficie de la réduction maximale de -23 % sur toutes vos publications.'}
-                </p>
+                {loyalty.isDiamond ? (
+                  <div className="text-xs text-cyan-950 space-y-1.5 leading-relaxed">
+                    <p>
+                      {loyalty.isFreePublicationNow
+                        ? 'Votre prochain dossier publié est 100 % OFFERT (0 €, sans carte bancaire requise).'
+                        : `Dossiers publiés en Diamond : ${loyalty.diamondPublicationsCount} · Prochain dossier 100 % gratuit dans ${loyalty.dossiersUntilFreePublication} publication(s).`}
+                    </p>
+                    <p className="text-[11px] text-cyan-900">
+                      Privilèges spéciaux actifs : -45 % permanents · Mise en avant prioritaire de vos dossiers en tête de liste · Support humain prioritaire.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    {loyalty.nextTierLabel
+                      ? `Publiez encore ${Math.ceil(loyalty.expToNextTier / EXP_PER_DOSSIER)} dossier(s) (${loyalty.expToNextTier} EXP restants) pour débloquer le palier ${loyalty.nextTierLabel}.`
+                      : 'Votre compte bénéficie de tous les avantages Fidélité.'}
+                  </p>
+                )}
 
                 <button
                   type="button"

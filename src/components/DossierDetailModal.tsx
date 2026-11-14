@@ -224,6 +224,14 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                         {dossier.applicant.pseudonym}
                       </span>
                     </div>
+                    {(dossier.isDiamondPriority || dossier.applicant.loyaltyTier === 'diamond') && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Statut Fidélité :</span>
+                        <span className="font-extrabold text-cyan-700">
+                          Membre Officiel Fidèle Diamond
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500">Activité / Profession :</span>
                       <span className="font-semibold text-slate-900">

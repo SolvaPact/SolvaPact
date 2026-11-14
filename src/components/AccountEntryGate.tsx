@@ -226,7 +226,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                   <div>
                     <h3 className="font-bold text-white">Compte Fidélité & Paliers EXP</h3>
                     <p className="text-slate-400 mt-0.5 leading-relaxed">
-                      Gagnez +10 EXP à chaque dossier publié et débloquez jusqu'à <strong>-23 % de réduction</strong> sur vos publications.
+                      Gagnez +10 EXP à chaque dossier publié et débloquez jusqu'à <strong>-45 % de réduction</strong> et <strong>1 dossier offert tous les 5</strong> au palier Diamond.
                     </p>
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                         3. Tarifs & Compte Fidélité
                       </p>
                       <p className="mt-1">
-                        La création de compte et la préparation des dossiers sont gratuites. Seule la publication d'un dossier est facturée <strong>29,99 €</strong> (hors réduction fidélité Bronze -10 %, Silver -17 %, Gold -23 %), sans aucune commission sur les sommes négociées.
+                        La création de compte et la préparation des dossiers sont gratuites. Seule la publication d'un dossier est facturée <strong>29,99 €</strong> (hors réduction fidélité Bronze -10 %, Silver -17 %, Gold -23 %, Diamond -45 % et 1 dossier offert tous les 5), sans aucune commission sur les sommes négociées.
                       </p>
                     </div>
                   </div>

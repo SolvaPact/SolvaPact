@@ -324,7 +324,7 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
                 <span>3. Le Compte Fidélité ({formatEuro(LOYALTY_ACTIVATION_PRICE)} en une seule fois)</span>
               </div>
               <h2 className="text-2xl font-extrabold text-slate-900">
-                Cumulez +{EXP_PER_DOSSIER} EXP par dossier et obtenez jusqu'à -23 % à vie
+                Cumulez +{EXP_PER_DOSSIER} EXP par dossier et obtenez jusqu'à -45 % et 1 dossier offert tous les 5
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 max-w-2xl">
                 Votre statut évolue automatiquement au fil de vos publications et colore discrètement le nom de votre compte selon votre palier atteint.
@@ -343,7 +343,7 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
             <div className="p-5 rounded-2xl bg-orange-50/70 border border-orange-200 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-black text-amber-800 uppercase">Palier Bronze · 50 EXP</span>
@@ -375,6 +375,17 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
               <p className="text-sm font-bold text-amber-500">Nom de compte Gold</p>
               <p className="text-slate-600 leading-relaxed">
                 À 300 EXP, obtenez -23 % permanents sur toutes vos publications ({formatEuro(23.09)}).
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-cyan-50/80 border border-cyan-300 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-cyan-700 uppercase">Palier Diamond · 500 EXP</span>
+                <span className="font-mono font-extrabold text-cyan-800">-45 %</span>
+              </div>
+              <p className="text-sm font-extrabold text-cyan-600">Membre Officiel Fidèle Diamond</p>
+              <p className="text-slate-700 leading-relaxed">
+                À 500 EXP : <strong>-45 %</strong> ({formatEuro(16.49)}), <strong>1 dossier offert (0 €)</strong> tous les 5 dossiers, mise en avant & support prioritaires.
               </p>
             </div>
           </div>
