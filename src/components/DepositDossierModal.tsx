@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Dossier, DossierType, User } from '../types';
+import { Dossier, DossierType, InvestmentReturnMode, User } from '../types';
 import {
   BASE_PUBLICATION_PRICE,
   EXP_PER_DOSSIER,
@@ -77,6 +77,19 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const [contextStory, setContextStory] = useState('');
   const [guaranteeType, setGuaranteeType] = useState('Caution solidaire ou retenue sur salaire');
 
+  // Investment return structure & Detailed project fields
+  const [investmentReturnMode, setInvestmentReturnMode] =
+    useState<InvestmentReturnMode>('remboursement');
+  const [equityPercentage, setEquityPercentage] = useState<number>(15);
+  const [counterpartSummary, setCounterpartSummary] = useState<string>('');
+  const [projectStage, setProjectStage] = useState<string>('En cours de structuration');
+  const [legalStructure, setLegalStructure] = useState<string>('Particulier / Porteur de projet');
+  const [ownContribution, setOwnContribution] = useState<number>(0);
+  const [useOfFunds, setUseOfFunds] = useState<string>('');
+  const [timeline, setTimeline] = useState<string>('');
+  const [projectedRevenue, setProjectedRevenue] = useState<string>('');
+  const [employmentTenure, setEmploymentTenure] = useState<string>('');
+
   // Applicant Profile & Contact info
   const [applicantName, setApplicantName] = useState(currentUser?.name || '');
   const [applicantEmail, setApplicantEmail] = useState(currentUser?.email || '');
@@ -110,6 +123,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const [solvaReply, setSolvaReply] = useState<string | null>(null);
   const [solvaError, setSolvaError] = useState<string | null>(null);
   const [solvaProposal, setSolvaProposal] = useState<{
+    investmentReturnMode?: InvestmentReturnMode;
+    equityPercentage?: number;
     amountRequested: number;
     termMonths: number;
     targetInterestRate?: number;
@@ -128,6 +143,14 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setType(defaultType);
+      setInvestmentReturnMode('remboursement');
+      setEquityPercentage(15);
+      setCounterpartSummary('');
+      setOwnContribution(0);
+      setUseOfFunds('');
+      setTimeline('');
+      setProjectedRevenue('');
+      setEmploymentTenure('');
       setHasEnteredFinances(false);
       setPaymentError(null);
       setPdfUploadError(null);
@@ -308,6 +331,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       recommendedType?: DossierType;
       recommendedCategory?: string;
       proposedTerms?: {
+        investmentReturnMode?: InvestmentReturnMode;
+        equityPercentage?: number;
         amountRequested: number;
         termMonths: number;
         targetInterestRate?: number;
@@ -332,10 +357,10 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         const cleanDesc =
           fields.description?.trim() ||
           (targetType === 'investissement'
-            ? `Demande de financement participatif direct pour concrétiser ce projet (${trimmed.slice(0, 130)}). Remboursement mensuel encadré et conditions transparentes proposées directement à l'investisseur.`
+            ? `Demande de financement participatif direct pour concrétiser ce projet (${trimmed.slice(0, 130)}). Contrepartie négociable en direct (parts, dividendes ou remboursement).`
             : targetType === 'dette'
             ? `Demande d'apurement amiable pour solder et restructurer une situation existante (${trimmed.slice(0, 130)}). Protocole sous seing privé avec échéancier mensuel réaliste.`
-            : `Demande d'accompagnement financier direct (${trimmed.slice(0, 130)}) avec engagement de remboursement clair et justificatifs fournis.`);
+            : `Demande d'accompagnement financier direct (${trimmed.slice(0, 130)}) avec engagement clair et justificatifs fournis.`);
         setDescription(cleanDesc);
 
         const tabLabel =
@@ -391,6 +416,18 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
           targetInterestRate,
           termMonths,
           maxMonthlyPayment,
+          investmentReturnMode: type === 'dette' ? 'remboursement' : investmentReturnMode,
+          equityPercentage,
+          counterpartSummary,
+          projectDetails: {
+            projectStage,
+            legalStructure,
+            ownContribution,
+            useOfFunds,
+            timeline,
+            projectedRevenue,
+            employmentTenure,
+          },
           monthlyIncome: hasEnteredFinances ? monthlyIncome : undefined,
           existingCharges: hasEnteredFinances ? existingCharges : undefined,
           guaranteeType,
@@ -419,6 +456,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         recommendedType?: DossierType;
         recommendedCategory?: string;
         proposedTerms?: {
+          investmentReturnMode?: InvestmentReturnMode;
+          equityPercentage?: number;
           amountRequested: number;
           termMonths: number;
           targetInterestRate?: number;
@@ -455,12 +494,14 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 [[RESUME]]résumé d'accroche complet en 2 phrases rassurantes[[/RESUME]]
 Besoin : ${trimmed}`
             : step === 2
-            ? `Résume ma demande et propose les meilleurs délais/conditions SANS inventer aucun salaire ni charges (n'utilise jamais "je reste à votre disposition pour finaliser", ni de Markdown). Réponds exactement avec :
+            ? `Résume ma demande et propose les meilleurs délais/conditions SANS inventer aucun salaire ni charges (n'utilise jamais "je reste à votre disposition pour finaliser", ni de Markdown). Si le besoin parle de parts sociales, capital ou dividendes sans remboursement mensuel, choisis [[MODE]]parts_sociales[[/MODE]] et [[MENSUALITE]]0[[/MENSUALITE]]; si royalties/% CA choisis [[MODE]]redevance_ca[[/MODE]] et [[MENSUALITE]]0[[/MENSUALITE]]; sinon remboursement ou hybride. Réponds exactement avec :
 [[CONSEIL]]réponse claire en 2 à 4 phrases[[/CONSEIL]]
+[[MODE]]remboursement ou parts_sociales ou redevance_ca ou hybride[[/MODE]]
+[[PARTS]]pourcentage de parts ou CA entre 0 et 49[[/PARTS]]
 [[MONTANT]]montant en euros[[/MONTANT]]
 [[DUREE]]durée parmi 12, 24, 36, 48, 60, 72, 84, 120[[/DUREE]]
 [[TAUX]]6.0[[/TAUX]]
-[[MENSUALITE]]mensualité en euros[[/MENSUALITE]]
+[[MENSUALITE]]mensualité en euros (0 si parts_sociales ou redevance_ca)[[/MENSUALITE]]
 Ma demande : ${trimmed}`
             : step === 3
             ? `Formule en une phrase claire et rassurante (sans #, * ni Markdown) la garantie suivante pour mon dossier avec [[GARANTIE]]...[[/GARANTIE]] : ${trimmed}`
@@ -555,6 +596,24 @@ Ma demande : ${trimmed}`
           const validTerms = [12, 24, 36, 48, 60, 72, 84, 120];
           const snapTerm = (v: number) =>
             validTerms.reduce((b, c) => (Math.abs(c - v) < Math.abs(b - v) ? c : b), 48);
+          const rawMode = pickFlexTag(['MODE']).toLowerCase();
+          const detectedMode: InvestmentReturnMode =
+            type === 'dette'
+              ? 'remboursement'
+              : rawMode.includes('part') || rawMode.includes('capital') || rawMode.includes('equity')
+              ? 'parts_sociales'
+              : rawMode.includes('redevance') || rawMode.includes('ca') || rawMode.includes('royalt')
+              ? 'redevance_ca'
+              : rawMode.includes('hybride')
+              ? 'hybride'
+              : investmentReturnMode;
+          const rawParts = Number(pickFlexTag(['PARTS']).replace(',', '.').replace(/[^\d.]/g, ''));
+          const pParts =
+            rawParts > 0 && rawParts <= 49
+              ? Math.round(rawParts * 10) / 10
+              : detectedMode === 'parts_sociales' || detectedMode === 'redevance_ca' || detectedMode === 'hybride'
+              ? equityPercentage || 15
+              : undefined;
           const rawAmt = Number(pickFlexTag(['MONTANT']).replace(/[^\d]/g, ''));
           const rawDur = Number(pickFlexTag(['DUREE', 'DURÉE']).replace(/[^\d]/g, ''));
           const rawRate = Number(pickFlexTag(['TAUX']).replace(',', '.').replace(/[^\d.]/g, ''));
@@ -563,12 +622,15 @@ Ma demande : ${trimmed}`
           const pRate =
             type === 'dette'
               ? 5.5
+              : detectedMode === 'parts_sociales' || detectedMode === 'redevance_ca'
+              ? 0
               : rawRate >= 1 && rawRate <= 15
               ? Math.round(rawRate * 10) / 10
-              : targetInterestRate;
-          const exactM = calculateMonthlyPayment(pAmount, pRate, pTerm);
+              : targetInterestRate || 6.0;
+          const isZeroRepay = detectedMode === 'parts_sociales' || detectedMode === 'redevance_ca';
+          const exactM = isZeroRepay ? 0 : calculateMonthlyPayment(pAmount, pRate, pTerm);
           const rawMens = Number(pickFlexTag(['MENSUALITE', 'MENSUALITÉ']).replace(/[^\d]/g, ''));
-          const pMens = rawMens >= exactM ? rawMens : Math.max(exactM, Math.ceil(exactM / 10) * 10);
+          const pMens = isZeroRepay ? 0 : rawMens >= exactM ? rawMens : Math.max(exactM, Math.ceil(exactM / 10) * 10);
           const conseilClean = (pickFlexTag(['CONSEIL']) || replyStr)
             .replace(/je reste à votre disposition[^.!?\n]*[.!?]?/gi, '')
             .trim();
@@ -576,6 +638,8 @@ Ma demande : ${trimmed}`
           applyDraftFields({
             coachMessage: conseilClean,
             proposedTerms: {
+              investmentReturnMode: detectedMode,
+              equityPercentage: pParts,
               amountRequested: pAmount,
               termMonths: pTerm,
               targetInterestRate: type === 'dette' ? undefined : pRate,
@@ -603,6 +667,12 @@ Ma demande : ${trimmed}`
     if (!solvaProposal) return;
     setAmountRequested(solvaProposal.amountRequested);
     setTermMonths(solvaProposal.termMonths);
+    if (type !== 'dette' && solvaProposal.investmentReturnMode) {
+      setInvestmentReturnMode(solvaProposal.investmentReturnMode);
+    }
+    if (type !== 'dette' && typeof solvaProposal.equityPercentage === 'number') {
+      setEquityPercentage(solvaProposal.equityPercentage);
+    }
     if (type === 'dette') {
       if (originalDebtAmount < solvaProposal.amountRequested) {
         setOriginalDebtAmount(Math.round(solvaProposal.amountRequested / 0.8));
@@ -614,16 +684,24 @@ Ma demande : ${trimmed}`
     setSolvaProposal((prev) => (prev ? { ...prev, applied: true } : null));
   };
 
-  const applyPreset = (presetKey: 'credit' | 'tresorerie' | 'contentieux' | 'solidaire') => {
+  const applyPreset = (presetKey: 'credit' | 'tresorerie' | 'contentieux' | 'solidaire' | 'parts') => {
     if (presetKey === 'credit') {
       setType('dette');
+      setInvestmentReturnMode('remboursement');
       setTitle('Regroupement & Apurement de crédits conso et découverts');
       setCategory('Particulier / Refinancement');
+      setProjectStage('Restructuration urgente');
+      setLegalStructure('Particulier');
+      setOwnContribution(0);
       setOriginalDebtAmount(16000);
       setAmountRequested(12000);
       setTargetDiscount(25);
       setTermMonths(36);
       setMaxMonthlyPayment(310);
+      setUseOfFunds('Solde intégral de 2 crédits à la consommation et résorption du découvert bancaire');
+      setTimeline('Déblocage souhaité sous 15 jours');
+      setProjectedRevenue('Économie nette de 420 €/mois sur le budget global');
+      setEmploymentTenure('CDI depuis 4 ans');
       setDescription(
         "Restructuration complète de 2 crédits à la consommation et d'un découvert bancaire avec rachat au comptant décoté."
       );
@@ -631,14 +709,46 @@ Ma demande : ${trimmed}`
         'Salarié en CDI, je cherche à assainir ma situation financière en regroupant mes charges en une mensualité unique et supportable sous seing privé.'
       );
       setGuaranteeType('Engagement de prélèvement SEPA & cession sur salaire');
+    } else if (presetKey === 'parts') {
+      setType('investissement');
+      setInvestmentReturnMode('parts_sociales');
+      setEquityPercentage(15);
+      setCounterpartSummary('15 % des parts sociales + versement annuel des dividendes (aucun remboursement mensuel)');
+      setTitle("Ouverture de capital (15 % de parts) pour développement d'activité");
+      setCategory('Éducation & Formation');
+      setProjectStage('Prêt à lancer (devis signés)');
+      setLegalStructure('Projet en création / École / Société');
+      setOwnContribution(4000);
+      setAmountRequested(15000);
+      setMaxMonthlyPayment(0);
+      setTermMonths(60);
+      setUseOfFunds('8 000 € aménagement des locaux, 4 500 € matériel, 2 500 € fonds de roulement');
+      setTimeline('Lancement opérationnel sous 2 mois');
+      setProjectedRevenue('Chiffre d’affaires prévisionnel de 9 000 €/mois dès le 4e mois');
+      setEmploymentTenure('6 ans d’expérience dans le secteur');
+      setDescription(
+        "Entrée au capital à hauteur de 15 % des parts en échange d'un apport de 15 000 € sans remboursement mensuel."
+      );
+      setContextStory(
+        "Porteur d'un projet structuré avec apport personnel de 4 000 €, je recherche un associé investisseur entrant au capital à hauteur de 15 % des parts sociales."
+      );
+      setGuaranteeType("Pacte d'associés enregistré, bilan trimestriel transparent et clause de suivi");
     } else if (presetKey === 'tresorerie') {
       setType('investissement');
+      setInvestmentReturnMode('remboursement');
       setTitle("Besoin de trésorerie d'exploitation et outillage professionnel");
       setCategory('Artisanat & BTP');
+      setProjectStage('Activité déjà existante');
+      setLegalStructure('Auto-entrepreneur / Indépendant');
+      setOwnContribution(2500);
       setAmountRequested(15000);
       setTargetInterestRate(6.5);
       setTermMonths(24);
       setMaxMonthlyPayment(670);
+      setUseOfFunds('11 000 € outillage chantier pro + 4 000 € avance fournitures');
+      setTimeline('Déploiement immédiat pour chantiers déjà signés');
+      setProjectedRevenue('Carnet de commandes de 42 000 € sur les 6 prochains mois');
+      setEmploymentTenure('Artisan établi depuis 4 ans');
       setDescription(
         'Financement de matériel de chantier pour honorer de nouveaux contrats signés avec paiement des intérêts chaque mois.'
       );
@@ -648,13 +758,21 @@ Ma demande : ${trimmed}`
       setGuaranteeType('Nantissement de matériel professionnel & caution solidaire');
     } else if (presetKey === 'contentieux') {
       setType('dette');
+      setInvestmentReturnMode('remboursement');
       setTitle("Apurement amiable d'une créance fournisseur avec décote comptant");
       setCategory('Commerce de bouche');
+      setProjectStage('Situation urgente / Restructuration');
+      setLegalStructure('Société (SAS / SARL / EURL)');
+      setOwnContribution(1000);
       setOriginalDebtAmount(10000);
       setAmountRequested(7000);
       setTargetDiscount(30);
       setTermMonths(24);
       setMaxMonthlyPayment(315);
+      setUseOfFunds('7 000 € versés directement pour éteindre la créance de 10 000 €');
+      setTimeline('Protocole signé sous 10 jours');
+      setProjectedRevenue('Trésorerie libérée immédiatement après clôture du litige');
+      setEmploymentTenure('Gérant depuis 5 ans');
       setDescription(
         'Règlement transactionnel sous seing privé avec le créancier pour éteindre le litige commercial et solder définitivement le dossier.'
       );
@@ -664,12 +782,20 @@ Ma demande : ${trimmed}`
       setGuaranteeType("Protocole d'accord sous seing privé avec désistement d'instance");
     } else {
       setType('autre');
+      setInvestmentReturnMode('remboursement');
       setTitle("Financement participatif de trésorerie d'urgence avec caution familiale");
       setCategory('Particulier / Refinancement');
+      setProjectStage('Situation urgente / Restructuration');
+      setLegalStructure('Particulier');
+      setOwnContribution(500);
       setAmountRequested(5000);
       setTargetInterestRate(5.0);
-      setTermMonths(18);
-      setMaxMonthlyPayment(290);
+      setTermMonths(24);
+      setMaxMonthlyPayment(230);
+      setUseOfFunds('Couverture d’un besoin ponctuel urgent sans crédit revolving');
+      setTimeline('Remboursement dès le mois suivant l’accord');
+      setProjectedRevenue('Revenus réguliers mensuels vérifiables');
+      setEmploymentTenure('Poste stable depuis 3 ans');
       setDescription(
         'Prêt direct pour surmonter un aléa temporaire de trésorerie avec engagement ferme de remboursement.'
       );
@@ -680,11 +806,17 @@ Ma demande : ${trimmed}`
     }
   };
 
-  const estimatedMonthly = calculateMonthlyPayment(
-    amountRequested,
-    type === 'dette' ? 5.5 : targetInterestRate,
-    termMonths
-  );
+  const isEquityOrRevenueMode =
+    type !== 'dette' &&
+    (investmentReturnMode === 'parts_sociales' || investmentReturnMode === 'redevance_ca');
+
+  const estimatedMonthly = isEquityOrRevenueMode
+    ? 0
+    : calculateMonthlyPayment(
+        amountRequested,
+        type === 'dette' ? 5.5 : targetInterestRate,
+        termMonths
+      );
 
   const effortRate = calculateEffortRate(monthlyIncome, existingCharges, estimatedMonthly);
   const computedRiskGrade = computeRiskGrade(effortRate);
@@ -727,6 +859,18 @@ Ma demande : ${trimmed}`
           : undefined;
         const updatedLoyalty = getLoyaltyStatus(projectedUser);
 
+        const effectiveMode: InvestmentReturnMode =
+          type === 'dette' ? 'remboursement' : investmentReturnMode;
+
+        const defaultCounterpartSummary =
+          effectiveMode === 'parts_sociales'
+            ? `${equityPercentage} % des parts sociales (sans remboursement mensuel)`
+            : effectiveMode === 'redevance_ca'
+            ? `${equityPercentage} % du chiffre d'affaires / bénéfices pendant ${termMonths} mois`
+            : effectiveMode === 'hybride'
+            ? `Remboursement à ${targetInterestRate} % + ${equityPercentage} % de parts`
+            : undefined;
+
         const newDossier: Dossier = {
           id: `dos-${Date.now()}`,
           title:
@@ -740,10 +884,29 @@ Ma demande : ${trimmed}`
           category,
           amountRequested: Number(amountRequested),
           originalDebtAmount: type === 'dette' ? Number(originalDebtAmount) : undefined,
-          targetInterestRate: type === 'investissement' ? Number(targetInterestRate) : 5.5,
+          targetInterestRate:
+            type === 'dette'
+              ? 5.5
+              : isEquityOrRevenueMode
+              ? 0
+              : Number(targetInterestRate),
           targetDiscount: type === 'dette' ? Number(targetDiscount) : undefined,
-          maxMonthlyPayment: Number(maxMonthlyPayment),
+          maxMonthlyPayment: isEquityOrRevenueMode ? 0 : Number(maxMonthlyPayment),
           termMonths: Number(termMonths),
+          investmentReturnMode: effectiveMode,
+          equityPercentage:
+            effectiveMode === 'remboursement' ? undefined : Number(equityPercentage),
+          counterpartSummary: counterpartSummary.trim() || defaultCounterpartSummary,
+          projectDetails: {
+            projectStage,
+            legalStructure,
+            ownContribution: Number(ownContribution) || 0,
+            useOfFunds: useOfFunds.trim() || undefined,
+            timeline: timeline.trim() || undefined,
+            projectedRevenue: projectedRevenue.trim() || undefined,
+            employmentTenure: employmentTenure.trim() || undefined,
+            equityExitNote: counterpartSummary.trim() || defaultCounterpartSummary,
+          },
           description:
             description ||
             `Dossier classé dans l'onglet ${
@@ -751,7 +914,7 @@ Ma demande : ${trimmed}`
             } pour négociation directe avec des investisseurs.`,
           contextStory:
             contextStory ||
-            'Exposé complet de la situation financière, du besoin de fonds et des engagements de remboursement.',
+            'Exposé complet de la situation financière, du besoin de fonds et des engagements proposés.',
           guaranteeType,
           applicant: {
             name: applicantName || currentUser?.name || 'Demandeur',
@@ -975,17 +1138,48 @@ Ma demande : ${trimmed}`
                         <span>
                           Montant : <strong className="text-white">{formatEuro(solvaProposal.amountRequested)}</strong>
                         </span>
-                        <span>
-                          Durée : <strong className="text-white">{solvaProposal.termMonths} mois</strong>
-                        </span>
-                        {type !== 'dette' && typeof solvaProposal.targetInterestRate === 'number' && (
-                          <span>
-                            Taux : <strong className="text-white">{solvaProposal.targetInterestRate} %</strong>
-                          </span>
+                        {solvaProposal.investmentReturnMode === 'parts_sociales' ||
+                        solvaProposal.investmentReturnMode === 'redevance_ca' ? (
+                          <>
+                            <span>
+                              Mode :{' '}
+                              <strong className="text-white">
+                                {solvaProposal.investmentReturnMode === 'parts_sociales'
+                                  ? 'Parts sociales'
+                                  : 'Partage CA / Bénéfices'}
+                              </strong>
+                            </span>
+                            {typeof solvaProposal.equityPercentage === 'number' && (
+                              <span>
+                                Contrepartie :{' '}
+                                <strong className="text-white">{solvaProposal.equityPercentage} %</strong>
+                              </span>
+                            )}
+                            <span>
+                              Mensualité : <strong className="text-white">0 €/mois</strong>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span>
+                              Durée : <strong className="text-white">{solvaProposal.termMonths} mois</strong>
+                            </span>
+                            {type !== 'dette' && typeof solvaProposal.targetInterestRate === 'number' && (
+                              <span>
+                                Taux : <strong className="text-white">{solvaProposal.targetInterestRate} %</strong>
+                              </span>
+                            )}
+                            {typeof solvaProposal.equityPercentage === 'number' &&
+                              solvaProposal.equityPercentage > 0 && (
+                                <span>
+                                  + Parts : <strong className="text-white">{solvaProposal.equityPercentage} %</strong>
+                                </span>
+                              )}
+                            <span>
+                              Mensualité : <strong className="text-white">{formatEuro(solvaProposal.maxMonthlyPayment)}/mois</strong>
+                            </span>
+                          </>
                         )}
-                        <span>
-                          Mensualité : <strong className="text-white">{formatEuro(solvaProposal.maxMonthlyPayment)}/mois</strong>
-                        </span>
                       </div>
 
                       <button
@@ -1027,7 +1221,10 @@ Ma demande : ${trimmed}`
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div
-                  onClick={() => setType('dette')}
+                  onClick={() => {
+                    setType('dette');
+                    setInvestmentReturnMode('remboursement');
+                  }}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                     type === 'dette'
                       ? 'border-amber-600 bg-amber-50/50 shadow-xs'
@@ -1056,7 +1253,7 @@ Ma demande : ${trimmed}`
                   </span>
                   <h4 className="text-sm font-bold text-slate-900">Investissement</h4>
                   <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
-                    Besoin de capital, achat de matériel, trésorerie de projet ou entreprise rémunéré par un taux d'intérêt.
+                    Ouverture au capital contre parts, partage des bénéfices, matériel ou financement avec intérêts.
                   </p>
                 </div>
 
@@ -1083,7 +1280,15 @@ Ma demande : ${trimmed}`
                   <Zap className="w-3.5 h-3.5 text-amber-500" />
                   <span>Modèles fréquents (cliquez pour pré-remplir instantanément) :</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('parts')}
+                    className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/70 hover:border-emerald-300 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="font-bold text-emerald-950 block">Investissement contre parts (%)</span>
+                    <span className="text-[10px] text-emerald-800">15 000 € · 15 % des parts · 0 €/mois</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => applyPreset('credit')}
@@ -1114,7 +1319,7 @@ Ma demande : ${trimmed}`
                     className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
                   >
                     <span className="font-bold text-slate-900 block">Prêt solidaire personnel</span>
-                    <span className="text-[10px] text-slate-500">5 000 € · 5.0% · 18 mois</span>
+                    <span className="text-[10px] text-slate-500">5 000 € · 5.0% · 24 mois</span>
                   </button>
                 </div>
               </div>
@@ -1130,7 +1335,7 @@ Ma demande : ${trimmed}`
                     type === 'dette'
                       ? 'Ex: Rachat de créance fournisseur et apurement sur 24 mois'
                       : type === 'investissement'
-                      ? "Ex: Financement d'un four professionnel pour boulangerie"
+                      ? "Ex: Ouverture au capital (15 % de parts) pour création d'une école ou entreprise"
                       : "Ex: Financement solidaire pour reprise d'activité"
                   }
                   value={title}
@@ -1152,24 +1357,75 @@ Ma demande : ${trimmed}`
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Sous-catégorie ou domaine
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-                >
-                  <option value="Éducation & Formation">Éducation &amp; Formation</option>
-                  <option value="Immobilier & Construction">Immobilier &amp; Construction</option>
-                  <option value="Artisanat & BTP">Artisanat &amp; BTP</option>
-                  <option value="Commerce de bouche">Commerce de bouche</option>
-                  <option value="Particulier / Refinancement">Particulier / Refinancement</option>
-                  <option value="Profession libérale & Freelance">Profession libérale &amp; Freelance</option>
-                  <option value="Automobile & Logistique">Automobile &amp; Logistique</option>
-                  <option value="Autre domaine">Autre domaine</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Sous-catégorie ou domaine
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="Éducation & Formation">Éducation &amp; Formation</option>
+                    <option value="Immobilier & Construction">Immobilier &amp; Construction</option>
+                    <option value="Artisanat & BTP">Artisanat &amp; BTP</option>
+                    <option value="Commerce de bouche">Commerce de bouche</option>
+                    <option value="Particulier / Refinancement">Particulier / Refinancement</option>
+                    <option value="Profession libérale & Freelance">Profession libérale &amp; Freelance</option>
+                    <option value="Automobile & Logistique">Automobile &amp; Logistique</option>
+                    <option value="Autre domaine">Autre domaine</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Stade d'avancement du dossier
+                  </label>
+                  <select
+                    value={projectStage}
+                    onChange={(e) => setProjectStage(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="Idée / Étude en cours">Idée / Étude en cours</option>
+                    <option value="En cours de structuration">En cours de structuration</option>
+                    <option value="Prêt à lancer (devis signés)">Prêt à lancer (devis signés)</option>
+                    <option value="Activité déjà existante">Activité déjà existante</option>
+                    <option value="Restructuration urgente">Restructuration urgente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Statut du porteur / structure juridique
+                  </label>
+                  <select
+                    value={legalStructure}
+                    onChange={(e) => setLegalStructure(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="Particulier / Porteur de projet">Particulier / Porteur de projet</option>
+                    <option value="Auto-entrepreneur / Indépendant">Auto-entrepreneur / Indépendant</option>
+                    <option value="Société (SAS / SARL / EURL)">Société (SAS / SARL / EURL)</option>
+                    <option value="Projet en création / École / Association">Projet en création / École / Association</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Apport personnel déjà engagé (€)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={ownContribution}
+                    onChange={(e) => setOwnContribution(Math.max(0, Number(e.target.value)))}
+                    placeholder="Ex: 2000"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -1177,6 +1433,83 @@ Ma demande : ${trimmed}`
           {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-4">
+              {type !== 'dette' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block mb-2">
+                    Comment rémunérez-vous l'investisseur ?
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setInvestmentReturnMode('parts_sociales')}
+                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        investmentReturnMode === 'parts_sociales'
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Parts sociales / Entrée au capital (%)
+                      </span>
+                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                        Aucun remboursement mensuel : l'investisseur reçoit des parts et dividendes du projet.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInvestmentReturnMode('redevance_ca')}
+                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        investmentReturnMode === 'redevance_ca'
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Partage des bénéfices / Royalties (%)
+                      </span>
+                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                        Reversement d'un % du chiffre d'affaires ou des bénéfices sans mensualité fixe.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInvestmentReturnMode('remboursement')}
+                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        investmentReturnMode === 'remboursement'
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Remboursement mensuel avec intérêts
+                      </span>
+                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                        Prêt direct remboursé chaque mois selon un taux annuel fixe et une durée choisie.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInvestmentReturnMode('hybride')}
+                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        investmentReturnMode === 'hybride'
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Formule mixte (Remboursement + Parts)
+                      </span>
+                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                        Remboursement du capital à taux modéré + une part minoritaire au capital.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
@@ -1196,7 +1529,7 @@ Ma demande : ${trimmed}`
                     className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
                   />
                   <span className="text-[11px] text-slate-400 mt-1 block">
-                    Capital à débourser par l'investisseur
+                    Capital apporté par l'investisseur
                   </span>
                 </div>
 
@@ -1214,6 +1547,30 @@ Ma demande : ${trimmed}`
                     />
                     <span className="text-[11px] text-slate-400 mt-1 block">
                       Permet de mesurer l'économie de décote
+                    </span>
+                  </div>
+                ) : isEquityOrRevenueMode ? (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      {investmentReturnMode === 'parts_sociales'
+                        ? 'Parts sociales proposées à l’investisseur (%)'
+                        : 'Partage du CA ou des bénéfices proposé (%)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="1"
+                      max="49"
+                      value={equityPercentage}
+                      onChange={(e) =>
+                        setEquityPercentage(Math.min(49, Math.max(1, Number(e.target.value))))
+                      }
+                      className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      {investmentReturnMode === 'parts_sociales'
+                        ? 'Part du capital détenue par l’investisseur (1 % à 49 %)'
+                        : 'Pourcentage reversé selon vos recettes réelles'}
                     </span>
                   </div>
                 ) : (
@@ -1237,62 +1594,173 @@ Ma demande : ${trimmed}`
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {type !== 'dette' && investmentReturnMode === 'hybride' && (
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Durée souhaitée de remboursement
-                  </label>
-                  <select
-                    value={termMonths}
-                    onChange={(e) => setTermMonths(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  >
-                    <option value={12}>12 mois (1 an) - Remboursement très rapide</option>
-                    <option value={24}>24 mois (2 ans)</option>
-                    <option value={36}>36 mois (3 ans)</option>
-                    <option value={48}>48 mois (4 ans)</option>
-                    <option value={60}>60 mois (5 ans) - Mensualité modérée</option>
-                    <option value={72}>72 mois (6 ans) - Mensualité allégée</option>
-                    <option value={84}>84 mois (7 ans) - Petite mensualité</option>
-                    <option value={120}>120 mois (10 ans) - Mensualité minimale</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Votre mensualité maximale (€ / mois)
+                    Bonus parts sociales / intéressement en plus du remboursement (%)
                   </label>
                   <input
                     type="number"
-                    min="50"
-                    value={maxMonthlyPayment}
-                    onChange={(e) => setMaxMonthlyPayment(Number(e.target.value))}
+                    step="0.5"
+                    min="1"
+                    max="49"
+                    value={equityPercentage}
+                    onChange={(e) =>
+                      setEquityPercentage(Math.min(49, Math.max(1, Number(e.target.value))))
+                    }
                     className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
                   />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Capacité financière mensuelle
-                  </span>
                 </div>
-              </div>
+              )}
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
-                <div>
-                  <span className="text-slate-500 block">Mensualité théorique résultante :</span>
-                  <span className="text-base font-bold text-slate-900 tabular-nums">
-                    {formatEuro(estimatedMonthly)} / mois
-                  </span>
+              {isEquityOrRevenueMode ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      {investmentReturnMode === 'parts_sociales'
+                        ? 'Horizon de partenariat / pacte d’associés'
+                        : 'Durée de partage des revenus / royalties'}
+                    </label>
+                    <select
+                      value={termMonths}
+                      onChange={(e) => setTermMonths(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    >
+                      <option value={12}>12 mois (1 an)</option>
+                      <option value={24}>24 mois (2 ans)</option>
+                      <option value={36}>36 mois (3 ans)</option>
+                      <option value={48}>48 mois (4 ans)</option>
+                      <option value={60}>60 mois (5 ans - Standard pacte)</option>
+                      <option value={72}>72 mois (6 ans)</option>
+                      <option value={84}>84 mois (7 ans)</option>
+                      <option value={120}>120 mois (10 ans - Long terme)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Précision sur les dividendes ou la sortie
+                    </label>
+                    <input
+                      type="text"
+                      value={counterpartSummary}
+                      onChange={(e) => setCounterpartSummary(e.target.value)}
+                      placeholder="Ex: Dividendes annuels + possibilité de rachat des parts à 5 ans"
+                      className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block">Budget mensuel :</span>
-                  <span
-                    className={`font-semibold ${
-                      estimatedMonthly <= maxMonthlyPayment ? 'text-emerald-700' : 'text-amber-700'
-                    }`}
-                  >
-                    {estimatedMonthly <= maxMonthlyPayment
-                      ? '✓ Équilibré et réaliste'
-                      : '⚠ Allongez la durée pour baisser la mensualité'}
-                  </span>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Durée souhaitée de remboursement
+                    </label>
+                    <select
+                      value={termMonths}
+                      onChange={(e) => setTermMonths(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    >
+                      <option value={12}>12 mois (1 an) - Remboursement très rapide</option>
+                      <option value={24}>24 mois (2 ans)</option>
+                      <option value={36}>36 mois (3 ans)</option>
+                      <option value={48}>48 mois (4 ans)</option>
+                      <option value={60}>60 mois (5 ans) - Mensualité modérée</option>
+                      <option value={72}>72 mois (6 ans) - Mensualité allégée</option>
+                      <option value={84}>84 mois (7 ans) - Petite mensualité</option>
+                      <option value={120}>120 mois (10 ans) - Mensualité minimale</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Votre mensualité maximale (€ / mois)
+                    </label>
+                    <input
+                      type="number"
+                      min="50"
+                      value={maxMonthlyPayment}
+                      onChange={(e) => setMaxMonthlyPayment(Number(e.target.value))}
+                      className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Capacité financière mensuelle
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isEquityOrRevenueMode ? (
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-emerald-800 font-bold block">
+                      {investmentReturnMode === 'parts_sociales'
+                        ? `Entrée au capital : ${equityPercentage} % des parts pour ${formatEuro(amountRequested)}`
+                        : `Partage de résultats : ${equityPercentage} % du CA / bénéfices sur ${termMonths} mois`}
+                    </span>
+                    <span className="text-[11px] text-emerald-700">
+                      Aucune mensualité fixe à rembourser : l'investisseur est associé à la réussite du projet.
+                    </span>
+                  </div>
+                  <span className="text-sm font-extrabold text-emerald-900 shrink-0">0 €/mois</span>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-slate-500 block">Mensualité théorique résultante :</span>
+                    <span className="text-base font-bold text-slate-900 tabular-nums">
+                      {formatEuro(estimatedMonthly)} / mois
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-500 block">Budget mensuel :</span>
+                    <span
+                      className={`font-semibold ${
+                        estimatedMonthly <= maxMonthlyPayment ? 'text-emerald-700' : 'text-amber-700'
+                      }`}
+                    >
+                      {estimatedMonthly <= maxMonthlyPayment
+                        ? '✓ Équilibré et réaliste'
+                        : '⚠ Allongez la durée pour baisser la mensualité'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Detailed Project / Fund Allocation Breakdown */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <span className="text-xs font-bold text-slate-900 block">
+                  Précisions concrètes sur l'utilisation des fonds (rassure les investisseurs)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Ventilation exacte de l'argent demandé
+                    </label>
+                    <input
+                      type="text"
+                      value={useOfFunds}
+                      onChange={(e) => setUseOfFunds(e.target.value)}
+                      placeholder={
+                        type === 'dette'
+                          ? 'Ex: 8 000 € crédit auto + 4 000 € découvert bancaire'
+                          : 'Ex: 6 000 € travaux locaux, 4 000 € matériel, 3 000 € trésorerie'
+                      }
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Calendrier de mise en œuvre / Délai
+                    </label>
+                    <input
+                      type="text"
+                      value={timeline}
+                      onChange={(e) => setTimeline(e.target.value)}
+                      placeholder="Ex: Travaux sur 2 mois, ouverture prévue en septembre"
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1444,7 +1912,7 @@ Ma demande : ${trimmed}`
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck
                     className={`w-5 h-5 shrink-0 ${
-                      effortRate <= 35
+                      isEquityOrRevenueMode || effortRate <= 35
                         ? 'text-emerald-600'
                         : effortRate <= 45
                         ? 'text-amber-600'
@@ -1453,37 +1921,89 @@ Ma demande : ${trimmed}`
                   />
                   <div>
                     <p className="font-bold text-slate-900">
-                      Indice de solvabilité estimé : Note {computedRiskGrade} ({effortRate}% d'effort)
+                      {isEquityOrRevenueMode
+                        ? `Mode ${investmentReturnMode === 'parts_sociales' ? 'Parts sociales' : 'Partage de résultats'} (${equityPercentage} %)`
+                        : `Indice de solvabilité estimé : Note ${computedRiskGrade} (${effortRate}% d'effort)`}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Reste à vivre après mensualité estimée :{' '}
-                      <strong className="text-slate-800">
-                        {formatEuro(Math.max(0, resteAVivre))} / mois
-                      </strong>
+                      {isEquityOrRevenueMode ? (
+                        'Aucune mensualité fixe retenue sur votre budget mensuel.'
+                      ) : (
+                        <>
+                          Reste à vivre après mensualité estimée :{' '}
+                          <strong className="text-slate-800">
+                            {formatEuro(Math.max(0, resteAVivre))} / mois
+                          </strong>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
                 <span
                   className={`font-bold text-[11px] px-2.5 py-1 rounded-md border shrink-0 ${
-                    effortRate <= 35
+                    isEquityOrRevenueMode || effortRate <= 35
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                       : effortRate <= 45
                       ? 'bg-amber-50 text-amber-800 border-amber-200'
                       : 'bg-rose-50 text-rose-800 border-rose-200'
                   }`}
                 >
-                  {effortRate <= 35 ? 'Profil Sain' : effortRate <= 45 ? 'Modéré' : "Taux d'effort élevé"}
+                  {isEquityOrRevenueMode
+                    ? '0 € de mensualité fixe'
+                    : effortRate <= 35
+                    ? 'Profil Sain'
+                    : effortRate <= 45
+                    ? 'Modéré'
+                    : "Taux d'effort élevé"}
                 </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Ancienneté / Expérience dans ce domaine
+                  </label>
+                  <input
+                    type="text"
+                    value={employmentTenure}
+                    onChange={(e) => setEmploymentTenure(e.target.value)}
+                    placeholder="Ex: 5 ans d'expérience, gérant ou CDI depuis 3 ans"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    {type === 'dette'
+                      ? 'Économie ou objectif mensuel visé'
+                      : 'Chiffre d’affaires ou retombées prévisionnelles'}
+                  </label>
+                  <input
+                    type="text"
+                    value={projectedRevenue}
+                    onChange={(e) => setProjectedRevenue(e.target.value)}
+                    placeholder={
+                      type === 'dette'
+                        ? 'Ex: Baisse des mensualités de 400 €/mois'
+                        : 'Ex: 8 500 €/mois de recettes estimées la 1ère année'
+                    }
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Garantie ou sûreté proposée pour sécuriser l'investisseur *
+                  Garantie, pacte ou sûreté proposée pour sécuriser l'investisseur *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Caution solidaire, gage véhicule, nantissement d'épargne ou matériel..."
+                  placeholder={
+                    isEquityOrRevenueMode
+                      ? "Ex: Pacte d'associés, suivi comptable trimestriel, engagement de transparence..."
+                      : "Ex: Caution solidaire, gage véhicule, nantissement d'épargne ou matériel..."
+                  }
                   value={guaranteeType}
                   onChange={(e) => setGuaranteeType(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"

@@ -195,6 +195,18 @@ export default async function handler(req: any, res: any) {
         targetInterestRate?: number;
         termMonths?: number;
         maxMonthlyPayment?: number;
+        investmentReturnMode?: string;
+        equityPercentage?: number;
+        counterpartSummary?: string;
+        projectDetails?: {
+          projectStage?: string;
+          legalStructure?: string;
+          ownContribution?: number;
+          useOfFunds?: string;
+          timeline?: string;
+          projectedRevenue?: string;
+          employmentTenure?: string;
+        };
         monthlyIncome?: number;
         existingCharges?: number;
         guaranteeType?: string;
@@ -275,6 +287,22 @@ export default async function handler(req: any, res: any) {
       return fallback >= 500 ? fallback : 10000;
     };
 
+    const pd = ctx.projectDetails || {};
+    const detailNotes = [
+      ctx.investmentReturnMode ? `Mode de contrepartie=${ctx.investmentReturnMode}` : '',
+      typeof ctx.equityPercentage === 'number' && ctx.equityPercentage > 0 ? `Parts ou partage=${ctx.equityPercentage}%` : '',
+      ctx.counterpartSummary ? `Modalités=${ctx.counterpartSummary}` : '',
+      pd.projectStage ? `Stade=${pd.projectStage}` : '',
+      pd.legalStructure ? `Structure=${pd.legalStructure}` : '',
+      typeof pd.ownContribution === 'number' && pd.ownContribution > 0 ? `Apport personnel=${pd.ownContribution} €` : '',
+      pd.useOfFunds ? `Affectation fonds=${pd.useOfFunds}` : '',
+      pd.timeline ? `Calendrier=${pd.timeline}` : '',
+      pd.projectedRevenue ? `Retombées prévues=${pd.projectedRevenue}` : '',
+      pd.employmentTenure ? `Ancienneté/expérience=${pd.employmentTenure}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     const stepFormat =
       stepNumber === 1
         ? `Analyse la demande du client. S'il s'agit d'un financement de projet, d'une construction, d'achat de matériel ou de création (ex: école, commerce, entreprise), le bon onglet est obligatoirement investissement (et non dette). S'il s'agit de rembourser ou racheter des dettes/crédits/découverts, le bon onglet est dette.
@@ -285,27 +313,32 @@ Retourne OBLIGATOIREMENT ces 5 balises exactes (chacune remplie avec soin) :
 [[RESUME]]un résumé d'accroche complet et rassurant de 2 phrases bien construites donnant envie à un investisseur d'ouvrir le dossier[[/RESUME]]
 [[CONSEIL]]une phrase brève informant le client (mentionne s'il y a eu réorientation vers Investissement/Dette et rappelle de vérifier le montant éventuel à l'étape 2)[[/CONSEIL]]`
         : stepNumber === 2
-        ? `Résume brièvement la demande du client (montant et projet si précisés) et propose les meilleurs délais/conditions (montant, durée parmi 12, 24, 36, 48, 60, 72, 84 ou 120 mois, taux annuel réaliste et mensualité).
-Ne cite JAMAIS de salaire ou de charges si Revenus=NON RENSEIGNÉS. Ne dis JAMAIS "je reste à votre disposition pour finaliser", termine plutôt en invitant le client à cliquer sur "OK, ça me va" juste en dessous si ces conditions lui conviennent.
-Retourne OBLIGATOIREMENT ces 5 balises exactes :
-[[CONSEIL]]réponse claire en 2 à 4 phrases sans aucun symbole Markdown résumant la demande et expliquant pourquoi cette durée et cette mensualité sont optimales[[/CONSEIL]]
+        ? `Résume brièvement la demande du client et propose la meilleure structure pour l'investisseur :
+- Si c'est un projet d'entreprise/école/commerce où le client propose des parts sociales, un pourcentage du capital ou des bénéfices SANS remboursement mensuel, choisis MODE=parts_sociales ou redevance_ca avec PARTS (ex: 15) et MENSUALITE=0.
+- Si c'est un prêt ou un rachat de dette avec échéances mensuelles, choisis MODE=remboursement avec DUREE (12, 24, 36, 48, 60, 72, 84 ou 120), TAUX et MENSUALITE.
+- Si c'est une formule mixte (remboursement + parts), choisis MODE=hybride.
+Ne cite JAMAIS de salaire ou de charges si Revenus=NON RENSEIGNÉS. Ne dis JAMAIS "je reste à votre disposition pour finaliser", invite plutôt à cliquer sur "OK, ça me va" juste en dessous si cela convient.
+Retourne OBLIGATOIREMENT ces balises exactes :
+[[CONSEIL]]réponse claire en 2 à 4 phrases sans Markdown résumant la demande et expliquant la proposition[[/CONSEIL]]
+[[MODE]]remboursement ou parts_sociales ou redevance_ca ou hybride[[/MODE]]
 [[MONTANT]]nombre entier en euros (ex: 13000)[[/MONTANT]]
 [[DUREE]]un seul nombre parmi 12, 24, 36, 48, 60, 72, 84, 120[[/DUREE]]
-[[TAUX]]nombre décimal du taux annuel proposé entre 3.0 et 12.0 (ex: 6.0)[[/TAUX]]
-[[MENSUALITE]]nombre entier en euros de la mensualité mensuelle conseillée[[/MENSUALITE]]`
+[[TAUX]]nombre décimal du taux annuel proposé entre 3.0 et 12.0 (ex: 6.0) ou 0 si sans remboursement[[/TAUX]]
+[[PARTS]]pourcentage de parts sociales ou de chiffre d'affaires proposé entre 0 et 49 (ex: 15)[[/PARTS]]
+[[MENSUALITE]]nombre entier en euros de la mensualité conseillée (0 si parts_sociales ou redevance_ca)[[/MENSUALITE]]`
         : stepNumber === 3
         ? `Retourne UNIQUEMENT ces 2 balises exactes :
 [[GARANTIE]]une phrase claire, sérieuse et crédible formulant la garantie réelle décrite par le client sans rien inventer[[/GARANTIE]]
 [[CONSEIL]]une phrase brève pour confirmer la formulation au client[[/CONSEIL]]`
         : `Retourne UNIQUEMENT ces 2 balises exactes :
-[[EXPOSE]]un texte complet, structuré et convaincant en 3 paragraphes bien aérés présentant le besoin, l'usage exact des fonds, le sérieux du remboursement et les justificatifs (${attachedList}) sans inventer de salaire non communiqué[[/EXPOSE]]
+[[EXPOSE]]un texte complet, structuré et convaincant en 3 paragraphes bien aérés présentant le besoin, l'usage précis des fonds (${pd.useOfFunds || 'à détailler selon le message'}), la contrepartie pour l'investisseur, le sérieux du dossier et les justificatifs (${attachedList}) sans inventer de salaire non communiqué[[/EXPOSE]]
 [[CONSEIL]]une phrase brève pour confirmer la rédaction de l'exposé au client[[/CONSEIL]]`;
 
     const draftPrompt = `Tu es SolvaSolution, l'assistant expert de SolvaPact.
 Règle absolue : Rédige en français naturel, clair et fluide. N'utilise JAMAIS de symboles Markdown (#, *, **, _, \`) ni de listes à astérisques. N'invente JAMAIS de salaire, de revenus, de charges ou de faux chiffres non donnés par le client.
 
 Client : ${typeof userName === 'string' && userName.trim() ? userName.trim().slice(0, 60) : 'Membre SolvaPact'}
-Contexte actuel : Onglet sélectionné=${ctx.type || 'dette'}, Sous-domaine=${ctx.category || 'Particulier & Pro'}, Montant actuel=${ctx.amountRequested || 10000} €, Durée actuelle=${ctx.termMonths || 36} mois, ${financeContextLine}, Pièces=${attachedList}.
+Contexte actuel : Onglet sélectionné=${ctx.type || 'dette'}, Sous-domaine=${ctx.category || 'Particulier & Pro'}, Montant actuel=${ctx.amountRequested || 10000} €, Durée actuelle=${ctx.termMonths || 36} mois, ${financeContextLine}${detailNotes ? `, Précisions dossier=[${detailNotes}]` : ''}, Pièces=${attachedList}.
 
 Message du client :
 "${userPrompt.trim().slice(0, 2000)}"
@@ -314,9 +347,9 @@ ${stepFormat}`;
 
     const baseCandidates: Array<{
       model: string;
-      thinkingMode: 'minimal' | 'budget0' | 'none';
+      thinkingMode: 'low' | 'minimal' | 'budget0' | 'none';
     }> = [
-      { model: 'gemini-4-hydrogen', thinkingMode: 'minimal' },
+      { model: 'gemini-4-hydrogen', thinkingMode: 'low' },
       { model: 'gemini-3.1-flash-lite', thinkingMode: 'minimal' },
       { model: 'gemini-2.5-flash', thinkingMode: 'budget0' },
     ];
@@ -334,7 +367,9 @@ ${stepFormat}`;
     for (const candidate of modelAttempts) {
       try {
         const thinkingConfig =
-          candidate.thinkingMode === 'minimal'
+          candidate.thinkingMode === 'low'
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : candidate.thinkingMode === 'minimal'
             ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } }
             : candidate.thinkingMode === 'budget0'
             ? { thinkingConfig: { thinkingBudget: 0 } }
@@ -345,7 +380,7 @@ ${stepFormat}`;
             model: candidate.model,
             contents: draftPrompt,
             config: {
-              maxOutputTokens: stepNumber === 4 ? 850 : 600,
+              maxOutputTokens: stepNumber === 4 ? 1400 : 1000,
               ...thinkingConfig,
             },
           }),
@@ -406,6 +441,8 @@ ${stepFormat}`;
 
     let proposedTerms:
       | {
+          investmentReturnMode?: 'remboursement' | 'parts_sociales' | 'redevance_ca' | 'hybride';
+          equityPercentage?: number;
           amountRequested: number;
           termMonths: number;
           targetInterestRate?: number;
@@ -449,9 +486,40 @@ ${stepFormat}`;
           : `Onglet ${tabLabel} (${recommendedCategory}) confirmé : titre et résumé d'accroche rédigés dans votre dossier.`;
       }
     } else if (stepNumber === 2) {
+      const rawMode = extractFlexibleTag(rawOutput, ['MODE']).toLowerCase();
+      const promptLower = userPrompt.toLowerCase();
+      const wantsParts =
+        rawMode.includes('part') ||
+        rawMode.includes('capital') ||
+        promptLower.includes('part social') ||
+        promptLower.includes('des parts') ||
+        promptLower.includes('au capital') ||
+        promptLower.includes('dividende') ||
+        promptLower.includes('sans remboursement');
+      const wantsRoyalty =
+        rawMode.includes('redevance') ||
+        rawMode.includes('ca') ||
+        promptLower.includes('royalt') ||
+        promptLower.includes('bénéfice') ||
+        promptLower.includes('benefice') ||
+        promptLower.includes('chiffre d');
+      const wantsHybrid = rawMode.includes('hybride') || rawMode.includes('mixte');
+
+      const proposedMode: 'remboursement' | 'parts_sociales' | 'redevance_ca' | 'hybride' =
+        ctx.type === 'dette'
+          ? 'remboursement'
+          : wantsHybrid
+          ? 'hybride'
+          : wantsParts
+          ? 'parts_sociales'
+          : wantsRoyalty
+          ? 'redevance_ca'
+          : (ctx.investmentReturnMode as any) || 'remboursement';
+
       const rawAmount = extractFlexibleTag(rawOutput, ['MONTANT']);
       const rawDuration = extractFlexibleTag(rawOutput, ['DUREE', 'DURÉE']);
       const rawRate = extractFlexibleTag(rawOutput, ['TAUX']);
+      const rawParts = extractFlexibleTag(rawOutput, ['PARTS', 'EQUITY']);
       const rawMonthly = extractFlexibleTag(rawOutput, ['MENSUALITE', 'MENSUALITÉ']);
 
       const fallbackAmount = extractAmountFromPrompt(userPrompt, Number(ctx.amountRequested) || 10000);
@@ -467,37 +535,68 @@ ${stepFormat}`;
           : Number(ctx.termMonths) || defaultTerm
       );
 
-      const parsedRateNum = Number(rawRate.replace(',', '.').replace(/[^\d.]/g, ''));
-      const baseRate =
-        ctx.type === 'dette'
-          ? 5.5
-          : parsedRateNum >= 1 && parsedRateNum <= 15
-          ? Math.round(parsedRateNum * 10) / 10
-          : Number(ctx.targetInterestRate) || 6.0;
+      const parsedPartsNum = Number(rawParts.replace(',', '.').replace(/[^\d.]/g, ''));
+      const equityMatch = userPrompt.match(/(\d{1,2}(?:[.,]\d)?)\s*%/);
+      const promptPartsNum = equityMatch ? Number(equityMatch[1].replace(',', '.')) : 0;
+      const finalEquityPct =
+        proposedMode === 'remboursement'
+          ? undefined
+          : Math.min(
+              49,
+              Math.max(
+                1,
+                parsedPartsNum >= 1 && parsedPartsNum <= 49
+                  ? Math.round(parsedPartsNum * 10) / 10
+                  : promptPartsNum >= 1 && promptPartsNum <= 49
+                  ? promptPartsNum
+                  : Number(ctx.equityPercentage) || (proposedMode === 'parts_sociales' ? 15 : 8)
+              )
+            );
 
-      const exactMonthly = computeAnnuityMonthly(finalAmount, baseRate, finalDuration);
+      const isNoMonthlyMode = proposedMode === 'parts_sociales' || proposedMode === 'redevance_ca';
+      const parsedRateNum = Number(rawRate.replace(',', '.').replace(/[^\d.]/g, ''));
+      const baseRate = isNoMonthlyMode
+        ? 0
+        : ctx.type === 'dette'
+        ? 5.5
+        : parsedRateNum >= 1 && parsedRateNum <= 15
+        ? Math.round(parsedRateNum * 10) / 10
+        : Number(ctx.targetInterestRate) || 6.0;
+
+      const exactMonthly = isNoMonthlyMode
+        ? 0
+        : computeAnnuityMonthly(finalAmount, baseRate, finalDuration);
       const parsedMonthlyNum = Number(rawMonthly.replace(/[^\d]/g, ''));
-      const advisedBudget =
-        parsedMonthlyNum >= exactMonthly && parsedMonthlyNum <= exactMonthly * 1.5
-          ? parsedMonthlyNum
-          : Math.max(exactMonthly, Math.ceil(exactMonthly / 10) * 10);
+      const advisedBudget = isNoMonthlyMode
+        ? 0
+        : parsedMonthlyNum >= exactMonthly && parsedMonthlyNum <= exactMonthly * 1.5
+        ? parsedMonthlyNum
+        : Math.max(exactMonthly, Math.ceil(exactMonthly / 10) * 10);
 
       proposedTerms = {
+        investmentReturnMode: proposedMode,
+        equityPercentage: finalEquityPct,
         amountRequested: finalAmount,
         termMonths: finalDuration,
-        targetInterestRate: ctx.type === 'dette' ? undefined : baseRate,
+        targetInterestRate: ctx.type === 'dette' || isNoMonthlyMode ? undefined : baseRate,
         maxMonthlyPayment: advisedBudget,
       };
 
       if (!coachMessage) {
-        coachMessage = cleanedAll.split('\n')[0] || `Pour un besoin de ${finalAmount} €, une durée de ${finalDuration} mois permet de viser environ ${exactMonthly} € par mois.`;
+        coachMessage =
+          cleanedAll.split('\n')[0] ||
+          (isNoMonthlyMode
+            ? `Pour ${finalAmount} € avec entrée au capital ou partage à ${finalEquityPct} %, aucune mensualité fixe n'est exigée sur un horizon de ${finalDuration} mois.`
+            : `Pour un besoin de ${finalAmount} €, une durée de ${finalDuration} mois permet de viser environ ${exactMonthly} € par mois.`);
       }
       coachMessage = coachMessage
         .replace(/je reste à votre disposition[^.!?\n]*[.!?]?/gi, '')
         .replace(/n'hésitez pas à me solliciter[^.!?\n]*[.!?]?/gi, '')
         .trim();
       if (!coachMessage) {
-        coachMessage = `Voici ma proposition chiffrée pour ${finalAmount} € sur ${finalDuration} mois (environ ${exactMonthly} € par mois). Cliquez sur « OK, ça me va » ci-dessous pour remplir automatiquement votre dossier.`;
+        coachMessage = isNoMonthlyMode
+          ? `Proposition prête : ${finalAmount} € en échange de ${finalEquityPct} % (${proposedMode === 'parts_sociales' ? 'parts sociales' : 'partage de chiffre d’affaires / bénéfices'}), sans remboursement mensuel.`
+          : `Voici ma proposition chiffrée pour ${finalAmount} € sur ${finalDuration} mois (environ ${exactMonthly} € par mois). Cliquez sur « OK, ça me va » ci-dessous pour remplir automatiquement votre dossier.`;
       }
     } else if (stepNumber === 3 && !guaranteeType && cleanedAll) {
       return res.json({

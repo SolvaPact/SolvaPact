@@ -21,6 +21,18 @@ export function canViewDailyReport(user?: User | null): boolean {
 }
 
 export function applyOwnerGoldStatus(user: User): User {
+  const fullName = (user.name || `${user.firstName || ''} ${user.lastName || ''}`)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+  if (isOwnerGoldEmail(user.email) || fullName === 'hugo laumonier') {
+    return {
+      ...user,
+      loyaltyActive: true,
+      loyaltyExp: Math.max(500, user.loyaltyExp || 0),
+      loyaltyActivatedAt: user.loyaltyActivatedAt || new Date().toLocaleDateString('fr-FR'),
+    };
+  }
   return user;
 }
 

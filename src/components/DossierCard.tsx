@@ -122,49 +122,74 @@ export const DossierCard: React.FC<DossierCardProps> = ({
         </p>
 
         {/* Financial KPI Grid */}
-        <div className="grid grid-cols-3 gap-2 py-3.5 my-3.5 border-y border-slate-100 text-left">
-          <div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
-              {isDebt ? 'Rachat visé' : 'Montant demandé'}
-            </span>
-            <span className="text-base font-bold text-slate-900 tabular-nums">
-              {formatEuro(dossier.amountRequested)}
-            </span>
-            {isDebt && dossier.originalDebtAmount && (
-              <span className="text-[11px] text-slate-400 line-through block tabular-nums">
-                {formatEuro(dossier.originalDebtAmount)}
-              </span>
-            )}
-          </div>
+        {(() => {
+          const isParts = dossier.investmentReturnMode === 'parts_sociales';
+          const isRoyalty = dossier.investmentReturnMode === 'redevance_ca';
+          const isHybrid = dossier.investmentReturnMode === 'hybride';
+          const isNoMonthly = isParts || isRoyalty;
 
-          <div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
-              {isDebt ? 'Décote / Taux' : 'Taux proposé'}
-            </span>
-            <span className="text-base font-bold text-slate-900 tabular-nums">
-              {isDebt && dossier.targetDiscount
-                ? `-${dossier.targetDiscount}% décote`
-                : dossier.targetInterestRate
-                ? formatPct(dossier.targetInterestRate)
-                : 'À débattre'}
-            </span>
-            <span className="text-[11px] text-slate-500 block">
-              sur {dossier.termMonths} mois
-            </span>
-          </div>
+          return (
+            <div className="grid grid-cols-3 gap-2 py-3.5 my-3.5 border-y border-slate-100 text-left">
+              <div>
+                <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
+                  {isDebt ? 'Rachat visé' : 'Montant demandé'}
+                </span>
+                <span className="text-base font-bold text-slate-900 tabular-nums">
+                  {formatEuro(dossier.amountRequested)}
+                </span>
+                {isDebt && dossier.originalDebtAmount && (
+                  <span className="text-[11px] text-slate-400 line-through block tabular-nums">
+                    {formatEuro(dossier.originalDebtAmount)}
+                  </span>
+                )}
+              </div>
 
-          <div>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
-              Mensualité max
-            </span>
-            <span className="text-base font-bold text-slate-900 tabular-nums">
-              {formatEuro(dossier.maxMonthlyPayment)}
-            </span>
-            <span className="text-[11px] text-slate-500 block">
-              / mois déclarée
-            </span>
-          </div>
-        </div>
+              <div>
+                <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
+                  {isDebt
+                    ? 'Décote / Taux'
+                    : isParts
+                    ? 'Parts cédées'
+                    : isRoyalty
+                    ? 'Partage revenus'
+                    : isHybrid
+                    ? 'Taux + Parts'
+                    : 'Taux proposé'}
+                </span>
+                <span className="text-base font-bold text-slate-900 tabular-nums">
+                  {isDebt && dossier.targetDiscount
+                    ? `-${dossier.targetDiscount}% décote`
+                    : isNoMonthly
+                    ? `${dossier.equityPercentage || 15} %`
+                    : isHybrid
+                    ? `${dossier.targetInterestRate ? formatPct(dossier.targetInterestRate) : 'Mixte'} + ${dossier.equityPercentage || 10}%`
+                    : dossier.targetInterestRate
+                    ? formatPct(dossier.targetInterestRate)
+                    : 'À débattre'}
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  {isParts ? 'Entrée au capital' : `sur ${dossier.termMonths} mois`}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
+                  {isNoMonthly ? 'Contrepartie' : 'Mensualité max'}
+                </span>
+                <span className="text-base font-bold text-slate-900 tabular-nums">
+                  {isNoMonthly ? '0 € / mois' : formatEuro(dossier.maxMonthlyPayment)}
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  {isParts
+                    ? 'Dividendes / Parts'
+                    : isRoyalty
+                    ? 'Selon recettes'
+                    : '/ mois déclarée'}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Guarantees and Verification Row */}
         <div className="space-y-1.5 text-xs text-slate-600 mb-4">

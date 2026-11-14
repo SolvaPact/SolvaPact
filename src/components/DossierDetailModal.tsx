@@ -123,7 +123,10 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            Simulation de remboursement ({dossier.termMonths} mois)
+            {dossier.investmentReturnMode === 'parts_sociales' ||
+            dossier.investmentReturnMode === 'redevance_ca'
+              ? 'Accord & Contrepartie investisseur'
+              : `Simulation de remboursement (${dossier.termMonths} mois)`}
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -142,57 +145,90 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
           {activeTab === 'details' && (
             <>
               {/* Financial Summary Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/70">
-                <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-medium">
-                    {isDebt ? 'Montant à racheter' : 'Montant demandé'}
-                  </span>
-                  <p className="text-lg font-bold text-slate-900 tabular-nums">
-                    {formatEuro(dossier.amountRequested)}
-                  </p>
-                  {isDebt && dossier.originalDebtAmount && (
-                    <span className="text-xs text-slate-400 line-through tabular-nums">
-                      Initial : {formatEuro(dossier.originalDebtAmount)}
-                    </span>
-                  )}
-                </div>
+              {(() => {
+                const isParts = dossier.investmentReturnMode === 'parts_sociales';
+                const isRoyalty = dossier.investmentReturnMode === 'redevance_ca';
+                const isHybrid = dossier.investmentReturnMode === 'hybride';
+                const isNoMonthly = isParts || isRoyalty;
 
-                <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-medium">
-                    {isDebt ? 'Décote visée' : 'Taux annuel ciblé'}
-                  </span>
-                  <p className="text-lg font-bold text-slate-900 tabular-nums">
-                    {isDebt && dossier.targetDiscount
-                      ? `-${dossier.targetDiscount} %`
-                      : dossier.targetInterestRate
-                      ? formatPct(dossier.targetInterestRate)
-                      : 'Négociable'}
-                  </p>
-                  <span className="text-xs text-slate-500">Taux fixe négociable</span>
-                </div>
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/70">
+                    <div>
+                      <span className="text-[11px] text-slate-500 uppercase font-medium">
+                        {isDebt ? 'Montant à racheter' : 'Montant demandé'}
+                      </span>
+                      <p className="text-lg font-bold text-slate-900 tabular-nums">
+                        {formatEuro(dossier.amountRequested)}
+                      </p>
+                      {isDebt && dossier.originalDebtAmount && (
+                        <span className="text-xs text-slate-400 line-through tabular-nums">
+                          Initial : {formatEuro(dossier.originalDebtAmount)}
+                        </span>
+                      )}
+                    </div>
 
-                <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-medium">
-                    Durée souhaitée
-                  </span>
-                  <p className="text-lg font-bold text-slate-900 tabular-nums">
-                    {dossier.termMonths} mois
-                  </p>
-                  <span className="text-xs text-slate-500">
-                    {(dossier.termMonths / 12).toFixed(1)} ans
-                  </span>
-                </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 uppercase font-medium">
+                        {isDebt
+                          ? 'Décote visée'
+                          : isParts
+                          ? 'Parts proposées'
+                          : isRoyalty
+                          ? 'Partage revenus'
+                          : isHybrid
+                          ? 'Taux + Parts'
+                          : 'Taux annuel ciblé'}
+                      </span>
+                      <p className="text-lg font-bold text-slate-900 tabular-nums">
+                        {isDebt && dossier.targetDiscount
+                          ? `-${dossier.targetDiscount} %`
+                          : isNoMonthly
+                          ? `${dossier.equityPercentage || 15} %`
+                          : isHybrid
+                          ? `${dossier.targetInterestRate ? formatPct(dossier.targetInterestRate) : 'Mixte'} + ${dossier.equityPercentage || 10}%`
+                          : dossier.targetInterestRate
+                          ? formatPct(dossier.targetInterestRate)
+                          : 'Négociable'}
+                      </p>
+                      <span className="text-xs text-slate-500">
+                        {isParts
+                          ? 'Entrée au capital'
+                          : isRoyalty
+                          ? 'Selon CA / bénéfices'
+                          : 'Négociable'}
+                      </span>
+                    </div>
 
-                <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-medium">
-                    Mensualité maximale
-                  </span>
-                  <p className="text-lg font-bold text-slate-900 tabular-nums">
-                    {formatEuro(dossier.maxMonthlyPayment)}
-                  </p>
-                  <span className="text-xs text-slate-500">Capacité déclarée</span>
-                </div>
-              </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 uppercase font-medium">
+                        {isParts ? 'Horizon partenariat' : 'Durée souhaitée'}
+                      </span>
+                      <p className="text-lg font-bold text-slate-900 tabular-nums">
+                        {dossier.termMonths} mois
+                      </p>
+                      <span className="text-xs text-slate-500">
+                        {(dossier.termMonths / 12).toFixed(1)} ans
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] text-slate-500 uppercase font-medium">
+                        {isNoMonthly ? 'Mensualité fixe' : 'Mensualité maximale'}
+                      </span>
+                      <p className="text-lg font-bold text-slate-900 tabular-nums">
+                        {isNoMonthly ? '0 € / mois' : formatEuro(dossier.maxMonthlyPayment)}
+                      </p>
+                      <span className="text-xs text-slate-500">
+                        {isParts
+                          ? 'Dividendes / Parts'
+                          : isRoyalty
+                          ? 'Partage sur recettes'
+                          : 'Capacité déclarée'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Direct Negotiation Notice */}
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-3.5 py-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-950">
@@ -200,6 +236,80 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                   0 % de commission SolvaPact · Cliquez sur « Négocier » pour obtenir les coordonnées directes du créateur (Gmail, e-mail, téléphone).
                 </span>
               </div>
+
+              {/* Project Precision Details */}
+              {(dossier.counterpartSummary ||
+                dossier.projectDetails?.projectStage ||
+                dossier.projectDetails?.legalStructure ||
+                dossier.projectDetails?.useOfFunds ||
+                dossier.projectDetails?.timeline ||
+                dossier.projectDetails?.projectedRevenue ||
+                (dossier.projectDetails?.ownContribution && dossier.projectDetails.ownContribution > 0)) && (
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Précisions détaillées du dossier &amp; Affectation des fonds
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-slate-50/70 border border-slate-200 text-xs">
+                    {dossier.projectDetails?.projectStage && (
+                      <div>
+                        <span className="text-slate-500 block">Stade d'avancement :</span>
+                        <span className="font-semibold text-slate-900">
+                          {dossier.projectDetails.projectStage}
+                        </span>
+                      </div>
+                    )}
+                    {dossier.projectDetails?.legalStructure && (
+                      <div>
+                        <span className="text-slate-500 block">Structure / Porteur :</span>
+                        <span className="font-semibold text-slate-900">
+                          {dossier.projectDetails.legalStructure}
+                        </span>
+                      </div>
+                    )}
+                    {typeof dossier.projectDetails?.ownContribution === 'number' &&
+                      dossier.projectDetails.ownContribution > 0 && (
+                        <div>
+                          <span className="text-slate-500 block">Apport personnel engagé :</span>
+                          <span className="font-semibold text-emerald-700 tabular-nums">
+                            {formatEuro(dossier.projectDetails.ownContribution)}
+                          </span>
+                        </div>
+                      )}
+                    {dossier.counterpartSummary && (
+                      <div>
+                        <span className="text-slate-500 block">Contrepartie investisseur :</span>
+                        <span className="font-semibold text-slate-900">
+                          {dossier.counterpartSummary}
+                        </span>
+                      </div>
+                    )}
+                    {dossier.projectDetails?.useOfFunds && (
+                      <div className="sm:col-span-2">
+                        <span className="text-slate-500 block">Utilisation précise des fonds :</span>
+                        <span className="font-semibold text-slate-900">
+                          {dossier.projectDetails.useOfFunds}
+                        </span>
+                      </div>
+                    )}
+                    {dossier.projectDetails?.timeline && (
+                      <div>
+                        <span className="text-slate-500 block">Calendrier :</span>
+                        <span className="font-semibold text-slate-900">
+                          {dossier.projectDetails.timeline}
+                        </span>
+                      </div>
+                    )}
+                    {dossier.projectDetails?.projectedRevenue && (
+                      <div>
+                        <span className="text-slate-500 block">Retombées / CA prévisionnel :</span>
+                        <span className="font-semibold text-slate-900">
+                          {dossier.projectDetails.projectedRevenue}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Context Story */}
               <div>
@@ -304,68 +414,92 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
           )}
 
           {activeTab === 'echeancier' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-slate-500 block">Mensualité théorique estimée :</span>
-                  <span className="text-lg font-bold text-slate-900 tabular-nums">
-                    {formatEuro(monthlyCalculated)} / mois
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Intérêts totaux reversés :</span>
-                  <span className="text-lg font-bold text-emerald-700 tabular-nums">
-                    +{formatEuro(totalInterest)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Total remboursé :</span>
-                  <span className="text-lg font-bold text-slate-900 tabular-nums">
-                    {formatEuro(dossier.amountRequested + totalInterest)}
-                  </span>
+            dossier.investmentReturnMode === 'parts_sociales' ||
+            dossier.investmentReturnMode === 'redevance_ca' ? (
+              <div className="space-y-4">
+                <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-3">
+                  <h4 className="text-sm font-bold text-emerald-950">
+                    {dossier.investmentReturnMode === 'parts_sociales'
+                      ? `Investissement en capital (${dossier.equityPercentage || 15} % de parts sociales)`
+                      : `Partage des revenus / bénéfices (${dossier.equityPercentage || 8} %)`}
+                  </h4>
+                  <p className="text-xs text-emerald-900 leading-relaxed">
+                    Ce dossier ne fonctionne pas comme un crédit classique : il n'y a pas d'échéancier de remboursement mensuel fixe. L'investisseur apporte {formatEuro(dossier.amountRequested)} en échange d'une participation directe ({dossier.equityPercentage || 15} %) définie contractuellement entre vous.
+                  </p>
+                  {dossier.counterpartSummary && (
+                    <div className="p-3 rounded-lg bg-white border border-emerald-200 text-xs text-slate-800">
+                      <span className="font-semibold text-emerald-900 block mb-0.5">
+                        Modalités proposées :
+                      </span>
+                      {dossier.counterpartSummary}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3">Mois</th>
-                      <th className="py-2.5 px-3 text-right">Mensualité</th>
-                      <th className="py-2.5 px-3 text-right">Part Capital</th>
-                      <th className="py-2.5 px-3 text-right">Part Intérêts</th>
-                      <th className="py-2.5 px-3 text-right">Capital restant dû</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {schedule.slice(0, 12).map((row) => (
-                      <tr key={row.month} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-medium text-slate-900 tabular-nums">
-                          Mois {row.month}
-                        </td>
-                        <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums">
-                          {formatEuro(row.payment)}
-                        </td>
-                        <td className="py-2 px-3 text-right text-slate-600 tabular-nums">
-                          {formatEuro(row.principalPaid)}
-                        </td>
-                        <td className="py-2 px-3 text-right text-emerald-600 tabular-nums">
-                          {formatEuro(row.interestPaid)}
-                        </td>
-                        <td className="py-2 px-3 text-right font-semibold text-slate-900 tabular-nums">
-                          {formatEuro(row.remainingBalance)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {dossier.termMonths > 12 && (
-                  <div className="p-2.5 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-100">
-                    Affichage des 12 premières échéances sur {dossier.termMonths} mois au total.
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Mensualité théorique estimée :</span>
+                    <span className="text-lg font-bold text-slate-900 tabular-nums">
+                      {formatEuro(monthlyCalculated)} / mois
+                    </span>
                   </div>
-                )}
+                  <div>
+                    <span className="text-slate-500 block">Intérêts totaux reversés :</span>
+                    <span className="text-lg font-bold text-emerald-700 tabular-nums">
+                      +{formatEuro(totalInterest)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Total remboursé :</span>
+                    <span className="text-lg font-bold text-slate-900 tabular-nums">
+                      {formatEuro(dossier.amountRequested + totalInterest)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3">Mois</th>
+                        <th className="py-2.5 px-3 text-right">Mensualité</th>
+                        <th className="py-2.5 px-3 text-right">Part Capital</th>
+                        <th className="py-2.5 px-3 text-right">Part Intérêts</th>
+                        <th className="py-2.5 px-3 text-right">Capital restant dû</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {schedule.slice(0, 12).map((row) => (
+                        <tr key={row.month} className="hover:bg-slate-50">
+                          <td className="py-2 px-3 font-medium text-slate-900 tabular-nums">
+                            Mois {row.month}
+                          </td>
+                          <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums">
+                            {formatEuro(row.payment)}
+                          </td>
+                          <td className="py-2 px-3 text-right text-slate-600 tabular-nums">
+                            {formatEuro(row.principalPaid)}
+                          </td>
+                          <td className="py-2 px-3 text-right text-emerald-600 tabular-nums">
+                            {formatEuro(row.interestPaid)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                            {formatEuro(row.remainingBalance)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {dossier.termMonths > 12 && (
+                    <div className="p-2.5 text-center text-xs text-slate-500 bg-slate-50 border-t border-slate-100">
+                      Affichage des 12 premières échéances sur {dossier.termMonths} mois au total.
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {activeTab === 'documents' && (

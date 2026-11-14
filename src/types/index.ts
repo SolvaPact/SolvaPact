@@ -1,5 +1,18 @@
 export type DossierType = 'dette' | 'investissement' | 'autre';
 
+export type InvestmentReturnMode = 'remboursement' | 'parts_sociales' | 'redevance_ca' | 'hybride';
+
+export interface ProjectDetails {
+  projectStage?: string;
+  legalStructure?: string;
+  ownContribution?: number;
+  useOfFunds?: string;
+  timeline?: string;
+  projectedRevenue?: string;
+  equityExitNote?: string;
+  employmentTenure?: string;
+}
+
 export type RiskGrade = 'A' | 'B' | 'C' | 'D';
 
 export type LoyaltyTier = 'none' | 'standard' | 'bronze' | 'silver' | 'gold' | 'diamond';
@@ -43,6 +56,10 @@ export interface Dossier {
   targetDiscount?: number;
   maxMonthlyPayment: number;
   termMonths: number;
+  investmentReturnMode?: InvestmentReturnMode;
+  equityPercentage?: number;
+  counterpartSummary?: string;
+  projectDetails?: ProjectDetails;
   description: string;
   contextStory: string;
   guaranteeType: string;

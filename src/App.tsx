@@ -82,23 +82,14 @@ export default function App() {
     const saved = localStorage.getItem('solvapact_user');
     if (saved) {
       try {
-        let parsed = JSON.parse(saved) as User;
-        if (
-          isOwnerGoldEmail(parsed.email) &&
-          !localStorage.getItem('solvapact_test_pause_diamond_v1')
-        ) {
-          parsed = {
-            ...parsed,
-            loyaltyActive: false,
-            loyaltyExp: 0,
-            diamondPublicationsCount: 0,
-            loyaltyActivatedAt: undefined,
-          };
-          localStorage.setItem('solvapact_user', JSON.stringify(parsed));
-          localStorage.setItem('solvapact_test_pause_diamond_v1', 'true');
-          syncUserToAccountsStore(parsed);
+        localStorage.removeItem('solvapact_test_pause_diamond_v1');
+        const parsed = JSON.parse(saved) as User;
+        const upgraded = applyOwnerGoldStatus(parsed);
+        if (upgraded.loyaltyActive !== parsed.loyaltyActive || upgraded.loyaltyExp !== parsed.loyaltyExp) {
+          localStorage.setItem('solvapact_user', JSON.stringify(upgraded));
+          syncUserToAccountsStore(upgraded);
         }
-        return applyOwnerGoldStatus(parsed);
+        return upgraded;
       } catch (e) {
         console.error('Error loading user from localStorage', e);
       }

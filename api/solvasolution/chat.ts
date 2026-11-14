@@ -160,9 +160,9 @@ export default async function handler(req: any, res: any) {
 
     const baseCandidates: Array<{
       model: string;
-      thinkingMode: 'minimal' | 'budget0' | 'none';
+      thinkingMode: 'low' | 'minimal' | 'budget0' | 'none';
     }> = [
-      { model: 'gemini-4-hydrogen', thinkingMode: 'minimal' },
+      { model: 'gemini-4-hydrogen', thinkingMode: 'low' },
       { model: 'gemini-3.1-flash-lite', thinkingMode: 'minimal' },
       { model: 'gemini-2.5-flash', thinkingMode: 'budget0' },
     ];
@@ -180,7 +180,9 @@ export default async function handler(req: any, res: any) {
     for (const candidate of modelAttempts) {
       try {
         const thinkingConfig =
-          candidate.thinkingMode === 'minimal'
+          candidate.thinkingMode === 'low'
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : candidate.thinkingMode === 'minimal'
             ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } }
             : candidate.thinkingMode === 'budget0'
             ? { thinkingConfig: { thinkingBudget: 0 } }
@@ -192,7 +194,7 @@ export default async function handler(req: any, res: any) {
             contents,
             config: {
               systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
-              maxOutputTokens: 750,
+              maxOutputTokens: 1200,
               ...thinkingConfig,
             },
           }),
