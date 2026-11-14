@@ -96,12 +96,13 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">
                 <Award className="w-4 h-4" />
-                <span>
-                  {loyalty.isDiamond
-                    ? 'Membre Officiel Fidèle Diamond · Compte Fidélité'
-                    : 'Compte Fidélité SolvaPact'}
-                </span>
+                <span>Compte Fidélité SolvaPact</span>
               </div>
+              {loyalty.active && loyalty.badgeTitle && (
+                <span className={`${accountColorDark} text-[11px] uppercase tracking-wider block mb-0.5`}>
+                  {loyalty.badgeTitle}
+                </span>
+              )}
               <h2 className="text-xl font-bold">
                 {loyalty.active ? (
                   <>
@@ -135,7 +136,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                 <span className="font-bold text-slate-900">
                   {loyalty.active
                     ? loyalty.isDiamond
-                      ? `Statut Membre Officiel Fidèle Diamond : -${loyalty.discountPct} % + 1 dossier offert / 5`
+                      ? `Statut Membre Prestigieux Officiel (Diamond) : -${loyalty.discountPct} % + 1 dossier offert / 5`
                       : `Réduction active sur vos publications : -${loyalty.discountPct} %`
                     : 'Statut actuel : Compte Standard (Non activé)'}
                 </span>
@@ -181,7 +182,12 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="font-bold text-amber-800">Bronze</span>
                   <span className="font-mono text-[11px] font-bold text-amber-900">50 EXP</span>
                 </div>
-                <p className="font-bold text-amber-800">Nom de compte Bronze</p>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block leading-none">
+                    Membre Vérifié
+                  </span>
+                  <p className="font-bold text-amber-800">Nom de compte Bronze</p>
+                </div>
                 <p className="text-[11px] text-slate-600">
                   -10 % sur chaque publication ({formatEuro(26.99)} au lieu de {formatEuro(BASE_PUBLICATION_PRICE)}).
                 </p>
@@ -198,7 +204,12 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="font-bold text-slate-600">Silver</span>
                   <span className="font-mono text-[11px] font-bold text-slate-800">150 EXP</span>
                 </div>
-                <p className="font-bold text-slate-500">Nom de compte Silver</p>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-none">
+                    Membre Fidèle
+                  </span>
+                  <p className="font-bold text-slate-500">Nom de compte Silver</p>
+                </div>
                 <p className="text-[11px] text-slate-600">
                   -17 % sur chaque publication ({formatEuro(24.89)}).
                 </p>
@@ -215,7 +226,12 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="font-bold text-amber-600">Gold</span>
                   <span className="font-mono text-[11px] font-bold text-amber-700">300 EXP</span>
                 </div>
-                <p className="font-bold text-amber-500">Nom de compte Gold</p>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 block leading-none">
+                    Membre Précieux
+                  </span>
+                  <p className="font-bold text-amber-500">Nom de compte Gold</p>
+                </div>
                 <p className="text-[11px] text-slate-600">
                   -23 % permanents sur chaque publication ({formatEuro(23.09)}).
                 </p>
@@ -232,7 +248,12 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="font-extrabold text-cyan-700">Diamond</span>
                   <span className="font-mono text-[11px] font-extrabold text-cyan-800">500 EXP</span>
                 </div>
-                <p className="font-extrabold text-cyan-600">Membre Officiel Fidèle Diamond</p>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-600 block leading-none">
+                    Membre Prestigieux Officiel
+                  </span>
+                  <p className="font-extrabold text-cyan-600">Nom de compte Diamond</p>
+                </div>
                 <p className="text-[11px] text-slate-700 leading-relaxed">
                   <strong>-45 %</strong> ({formatEuro(16.49)}) + <strong>1 dossier offert (0 €)</strong> tous les 5 dossiers · mise en avant & support prioritaires.
                 </p>
@@ -261,8 +282,8 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                     <span>
                       {justActivated
                         ? 'Compte Fidélité activé avec succès !'
-                        : loyalty.isDiamond
-                        ? 'Statut actif : Membre Officiel Fidèle Diamond'
+                        : loyalty.badgeTitle
+                        ? `Statut actif : ${loyalty.badgeTitle} (${loyalty.label})`
                         : 'Votre Compte Fidélité est actif à vie'}
                     </span>
                   </div>

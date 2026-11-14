@@ -151,7 +151,12 @@ export const Header: React.FC<HeaderProps> = ({
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <div className="hidden sm:flex flex-col text-right text-xs">
-                  <span className={`${nameColorClass} leading-tight max-w-[140px] truncate`}>
+                  {loyalty.active && loyalty.badgeTitle && (
+                    <span className={`${nameColorClass} text-[10px] uppercase tracking-wider leading-none mb-0.5`}>
+                      {loyalty.badgeTitle}
+                    </span>
+                  )}
+                  <span className={`${nameColorClass} leading-tight max-w-[160px] truncate`}>
                     {currentUser.name}
                   </span>
                   <span className="text-[10px] text-slate-500 truncate max-w-[160px]">

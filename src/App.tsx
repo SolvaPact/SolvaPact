@@ -122,6 +122,7 @@ export default function App() {
   const [selectedDossierForDetail, setSelectedDossierForDetail] = useState<Dossier | null>(null);
   const [contactDossier, setContactDossier] = useState<Dossier | null>(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [depositGuidedBySolva, setDepositGuidedBySolva] = useState(false);
   const [depositDefaultType, setDepositDefaultType] = useState<DossierType>('dette');
   const [depositPrefill, setDepositPrefill] = useState<{ amount?: number; term?: number }>({});
   const [confirmClearTests, setConfirmClearTests] = useState(false);
@@ -305,9 +306,20 @@ export default function App() {
     prefillAmount?: number,
     prefillTerm?: number
   ) => {
+    setDepositGuidedBySolva(false);
     setDepositDefaultType(targetType);
     setDepositPrefill({ amount: prefillAmount, term: prefillTerm });
     requireAuth(() => setIsDepositModalOpen(true));
+  };
+
+  const handleStartGuidedDossier = () => {
+    setDepositDefaultType('dette');
+    setDepositPrefill({});
+    requireAuth(() => {
+      setActiveTab('explorer');
+      setDepositGuidedBySolva(true);
+      setIsDepositModalOpen(true);
+    });
   };
 
   const handleOpenContact = (dossier: Dossier) => {
@@ -750,7 +762,11 @@ export default function App() {
 
         {/* VIEW: CENTRE D'AIDE (SOLVASOLUTION IA + ESCALADE HUMAINE) */}
         {activeTab === 'aide' && (
-          <HelpView onNavigateToTab={setActiveTab} currentUser={currentUser} />
+          <HelpView
+            onNavigateToTab={setActiveTab}
+            currentUser={currentUser}
+            onStartGuidedDossier={handleStartGuidedDossier}
+          />
         )}
       </main>
 
@@ -781,13 +797,17 @@ export default function App() {
 
       <DepositDossierModal
         isOpen={isDepositModalOpen}
-        onClose={() => setIsDepositModalOpen(false)}
+        onClose={() => {
+          setIsDepositModalOpen(false);
+          setDepositGuidedBySolva(false);
+        }}
         onSubmitDossier={handleCreateDossier}
         currentUser={currentUser}
         defaultType={depositDefaultType}
         initialAmount={depositPrefill.amount}
         initialTerm={depositPrefill.term}
         onOpenLoyalty={() => setIsLoyaltyModalOpen(true)}
+        guidedBySolva={depositGuidedBySolva}
       />
 
       <LoyaltyModal

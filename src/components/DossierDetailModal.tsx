@@ -220,18 +220,24 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500">Pseudonyme affiché :</span>
-                      <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
-                        {dossier.applicant.pseudonym}
-                      </span>
-                    </div>
-                    {(dossier.isDiamondPriority || dossier.applicant.loyaltyTier === 'diamond') && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Statut Fidélité :</span>
-                        <span className="font-extrabold text-cyan-700">
-                          Membre Officiel Fidèle Diamond
+                      <div className="text-right leading-tight">
+                        {(dossier.applicant.loyaltyTitle ||
+                          dossier.isDiamondPriority ||
+                          dossier.applicant.loyaltyTier === 'diamond') && (
+                          <span
+                            className={`${getLoyaltyNameColorClass(
+                              dossier.applicant.loyaltyTier,
+                              false
+                            )} text-[10px] uppercase tracking-wider block`}
+                          >
+                            {dossier.applicant.loyaltyTitle || 'Membre Prestigieux Officiel'}
+                          </span>
+                        )}
+                        <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
+                          {dossier.applicant.pseudonym}
                         </span>
                       </div>
-                    )}
+                    </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500">Activité / Profession :</span>
                       <span className="font-semibold text-slate-900">

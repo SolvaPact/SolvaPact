@@ -22,7 +22,13 @@ import {
   CreditCard,
   Award,
   Lock,
+  Bot,
+  FileText,
+  Send,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
+import solvaBackdrop from '../assets/images/solvasolution_ai_backdrop_1794656956781.jpg';
 
 interface DepositDossierModalProps {
   isOpen: boolean;
@@ -33,6 +39,7 @@ interface DepositDossierModalProps {
   initialAmount?: number;
   initialTerm?: number;
   onOpenLoyalty?: () => void;
+  guidedBySolva?: boolean;
 }
 
 interface AttachedFile {
@@ -49,9 +56,11 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   initialAmount,
   initialTerm,
   onOpenLoyalty,
+  guidedBySolva = false,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
   // Form State - 3 main dossier types
   const [type, setType] = useState<DossierType>(defaultType);
@@ -90,10 +99,27 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
 
+  // SolvaSolution Mini-Box State
+  const [solvaInput, setSolvaInput] = useState('');
+  const [isSolvaDrafting, setIsSolvaDrafting] = useState(false);
+  const [solvaReply, setSolvaReply] = useState<string | null>(null);
+  const [solvaError, setSolvaError] = useState<string | null>(null);
+  const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSolvaInput('');
+    setSolvaReply(null);
+    setSolvaError(null);
+  }, [step]);
+
   useEffect(() => {
     if (isOpen) {
       setType(defaultType);
       setPaymentError(null);
+      setPdfUploadError(null);
+      setSolvaInput('');
+      setSolvaReply(null);
+      setSolvaError(null);
       if (initialAmount && initialAmount >= 500) {
         setAmountRequested(initialAmount);
       }
@@ -132,6 +158,212 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     }));
     setUploadedFiles((prev) => [...prev, ...nextFiles]);
     e.target.value = '';
+  };
+
+  const handlePdfImportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPdfUploadError(null);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const validPdfs: AttachedFile[] = [];
+    let rejected = false;
+
+    Array.from(files).forEach((f) => {
+      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        validPdfs.push({
+          name: f.name,
+          sizeLabel: formatFileSize(f.size),
+        });
+      } else {
+        rejected = true;
+      }
+    });
+
+    if (validPdfs.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...validPdfs]);
+    }
+    if (rejected) {
+      setPdfUploadError('Seuls les fichiers au format PDF (.pdf) sont acceptés dans cette zone.');
+    }
+    e.target.value = '';
+  };
+
+  const handleSolvaDraft = async () => {
+    const trimmed = solvaInput.trim();
+    if (!trimmed || isSolvaDrafting) return;
+
+    setSolvaError(null);
+    setSolvaReply(null);
+    setIsSolvaDrafting(true);
+
+    const applyDraftFields = (fields: {
+      title?: string;
+      description?: string;
+      guaranteeType?: string;
+      contextStory?: string;
+      coachMessage?: string;
+    }) => {
+      if (step === 1) {
+        if (fields.title?.trim()) setTitle(fields.title.trim());
+        if (fields.description?.trim()) setDescription(fields.description.trim());
+      } else if (step === 3) {
+        if (fields.guaranteeType?.trim()) setGuaranteeType(fields.guaranteeType.trim());
+      } else if (step === 4) {
+        if (fields.contextStory?.trim()) setContextStory(fields.contextStory.trim());
+      }
+      setSolvaReply(
+        fields.coachMessage?.trim() ||
+          (step === 2
+            ? 'Conseil affiché ci-dessous (vos chiffres restent entièrement sous votre contrôle).'
+            : 'Texte rédigé et inséré automatiquement dans votre dossier.')
+      );
+      setSolvaInput('');
+    };
+
+    try {
+      const payload = JSON.stringify({
+        step,
+        userPrompt: trimmed,
+        userName: applicantName || currentUser?.name,
+        dossierContext: {
+          type,
+          category,
+          title,
+          description,
+          amountRequested,
+          originalDebtAmount,
+          targetInterestRate,
+          termMonths,
+          maxMonthlyPayment,
+          monthlyIncome,
+          existingCharges,
+          guaranteeType,
+          contextStory,
+          attachedFiles: uploadedFiles.map((f) => f.name),
+        },
+      });
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 35000);
+      let response: Response | null = null;
+
+      try {
+        response = await fetch('/api/solvasolution/draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: payload,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+
+      const rawText = await response.text();
+      let parsedData: {
+        title?: string;
+        description?: string;
+        guaranteeType?: string;
+        contextStory?: string;
+        coachMessage?: string;
+        error?: string;
+      } | null = null;
+
+      try {
+        parsedData = JSON.parse(rawText);
+      } catch {
+        parsedData = null;
+      }
+
+      if (response.ok && parsedData && !parsedData.error) {
+        applyDraftFields(parsedData);
+        return;
+      }
+
+      // Automatic fallback via the proven /api/solvasolution/chat route if /draft is not yet deployed or returned 404/5xx
+      const fallbackController = new AbortController();
+      const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 35000);
+      try {
+        const tagInstruction =
+          step === 1
+            ? `Rédige pour mon dossier SolvaPact (type: ${type}, catégorie: ${category}) sans utiliser de #, * ni Markdown. Réponds exactement avec les balises [[TITRE]]...[[/TITRE]] et [[RESUME]]...[[/RESUME]]. Mon besoin : ${trimmed}`
+            : step === 2
+            ? `Réponds brièvement en texte clair (sans #, * ni Markdown) à ma question sur mes montants/durée (${amountRequested} €, ${termMonths} mois) : ${trimmed}`
+            : step === 3
+            ? `Formule en une phrase claire et rassurante (sans #, * ni Markdown) la garantie suivante pour mon dossier avec la balise [[GARANTIE]]...[[/GARANTIE]] : ${trimmed}`
+            : `Rédige l'exposé complet de mon dossier en 3 paragraphes clairs (sans #, * ni Markdown) avec la balise [[EXPOSE]]...[[/EXPOSE]]. Contexte: ${amountRequested} € sur ${termMonths} mois, revenus ${monthlyIncome} €/mois. Mon texte : ${trimmed}`;
+
+        const chatRes = await fetch('/api/solvasolution/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: fallbackController.signal,
+          body: JSON.stringify({
+            message: tagInstruction,
+            history: [],
+            userContext: currentUser
+              ? {
+                  name: currentUser.name,
+                  profession: currentUser.profession,
+                  loyaltyTier: loyalty.label,
+                  exp: loyalty.exp,
+                }
+              : undefined,
+          }),
+        });
+        window.clearTimeout(fallbackTimeout);
+
+        const chatRaw = await chatRes.text();
+        const chatData = JSON.parse(chatRaw) as { reply?: string; error?: string };
+
+        if (!chatRes.ok || !chatData.reply) {
+          setSolvaError(
+            parsedData?.error ||
+              chatData.error ||
+              'SolvaSolution n’a pas pu rédiger pour cette étape pour le moment. Réessayez dans un instant.'
+          );
+          return;
+        }
+
+        const replyStr = chatData.reply;
+        const pickTag = (tag: string) => {
+          const m = replyStr.match(new RegExp(`\\[\\[${tag}\\]\\]([\\s\\S]*?)\\[\\[\\/${tag}\\]\\]`, 'i'));
+          return m?.[1]?.trim() || '';
+        };
+
+        if (step === 1) {
+          const t = pickTag('TITRE') || replyStr.split('\n')[0]?.trim().slice(0, 120) || '';
+          const r = pickTag('RESUME') || replyStr.split('\n').slice(1).join(' ').trim().slice(0, 350);
+          applyDraftFields({
+            title: t,
+            description: r,
+            coachMessage: 'Titre et résumé rédigés et insérés dans votre dossier.',
+          });
+        } else if (step === 3) {
+          applyDraftFields({
+            guaranteeType: pickTag('GARANTIE') || replyStr.slice(0, 240),
+            coachMessage: 'Garantie formulée et insérée dans votre dossier.',
+          });
+        } else if (step === 4) {
+          applyDraftFields({
+            contextStory: pickTag('EXPOSE') || replyStr,
+            coachMessage: 'Exposé détaillé rédigé et inséré dans votre dossier.',
+          });
+        } else {
+          applyDraftFields({ coachMessage: replyStr });
+        }
+      } catch {
+        window.clearTimeout(fallbackTimeout);
+        setSolvaError(
+          parsedData?.error ||
+            'Connexion interrompue avec SolvaSolution. Vérifiez votre connexion et réessayez.'
+        );
+      }
+    } catch {
+      setSolvaError(
+        'Délai dépassé avec SolvaSolution. Réessayez votre demande ou remplissez le champ directement.'
+      );
+    } finally {
+      setIsSolvaDrafting(false);
+    }
   };
 
   const applyPreset = (presetKey: 'credit' | 'tresorerie' | 'contentieux' | 'solidaire') => {
@@ -323,6 +555,43 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     }, 850);
   };
 
+  const solvaPromptMeta =
+    step === 1
+      ? {
+          question:
+            'Expliquez en quelques mots votre besoin : SolvaSolution rédige votre titre et votre résumé d’accroche.',
+          placeholder:
+            'Ex : Je souhaite racheter 2 crédits conso et un découvert de 12 000 € pour n’avoir plus qu’une mensualité...',
+          buttonLabel: 'Rédiger titre & résumé',
+          writesText: true,
+        }
+      : step === 2
+      ? {
+          question:
+            'Étape chiffrée : SolvaSolution n’écrit pas à votre place sur vos montants, mais répond à vos questions ici.',
+          placeholder:
+            'Ex : Quelle durée choisir pour garder une mensualité réaliste sur 10 000 € ?',
+          buttonLabel: 'Poser la question',
+          writesText: false,
+        }
+      : step === 3
+      ? {
+          question:
+            'Décrivez les garanties ou sécurités que vous pouvez apporter : SolvaSolution les formule pour rassurer l’investisseur.',
+          placeholder:
+            'Ex : Je suis en CDI depuis 5 ans avec un garant familial et un véhicule déjà payé...',
+          buttonLabel: 'Formuler la garantie',
+          writesText: true,
+        }
+      : {
+          question:
+            'Racontez librement votre situation et votre plan de remboursement : SolvaSolution rédige le texte complet de votre dossier.',
+          placeholder:
+            'Ex : Artisan depuis 4 ans, carnet plein, besoin de 15 000 € pour un utilitaire, remboursement facile avec mes factures...',
+          buttonLabel: 'Rédiger mon exposé',
+          writesText: true,
+        };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden my-6">
@@ -330,7 +599,9 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
           <div>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-              Préparation gratuite · Étape {step} sur 4
+              {guidedBySolva
+                ? `Mode accompagné SolvaSolution · Étape ${step} sur 4`
+                : `Préparation gratuite · Étape ${step} sur 4`}
             </span>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5">
               {step === 1 && '1. Quel type de dossier préparez-vous ? (Gratuit)'}
@@ -362,6 +633,90 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* Compact SolvaSolution Step Square (visible at every step) */}
+          <div className="relative rounded-xl overflow-hidden border border-emerald-400/40 bg-slate-950 text-white shadow-sm">
+            <img
+              src={solvaBackdrop}
+              alt=""
+              aria-hidden="true"
+              referrerPolicy="no-referrer"
+              className="absolute inset-0 w-full h-full object-cover opacity-50 pointer-events-none select-none"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-slate-950/70 pointer-events-none"
+            />
+            <div className="relative z-10 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+                    <Bot className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-bold text-white">SolvaSolution</span>
+                  <span className="text-[10px] font-semibold text-emerald-300">
+                    {solvaPromptMeta.writesText
+                      ? 'Rédaction assistée (champs texte)'
+                      : 'Conseil chiffré (lecture seule)'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-medium">
+                  Étape {step}/4
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-200 leading-relaxed">
+                {solvaPromptMeta.question}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={solvaInput}
+                  onChange={(e) => setSolvaInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSolvaDraft();
+                    }
+                  }}
+                  placeholder={solvaPromptMeta.placeholder}
+                  className="flex-1 px-3 py-2 text-xs bg-slate-900/90 border border-slate-700 text-white placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                />
+                <button
+                  type="button"
+                  disabled={isSolvaDrafting || !solvaInput.trim()}
+                  onClick={handleSolvaDraft}
+                  className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-45 shrink-0 cursor-pointer"
+                >
+                  {isSolvaDrafting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                      <span>Rédaction...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{solvaPromptMeta.buttonLabel}</span>
+                      <Send className="w-3 h-3" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {solvaError && (
+                <div className="p-2 rounded-lg bg-rose-950/85 border border-rose-500/40 text-[11px] text-rose-200">
+                  {solvaError}
+                </div>
+              )}
+
+              {solvaReply && (
+                <div className="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/35 text-[11px] text-emerald-100 leading-relaxed flex items-start gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <span className="whitespace-pre-line">{solvaReply}</span>
+                </div>
+              )}
+            </div>
+          </div>
           {/* STEP 1 */}
           {step === 1 && (
             <div className="space-y-4">
@@ -487,6 +842,19 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Résumé d'accroche du dossier (optionnel — rédigé avec vous par SolvaSolution)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Courte présentation en 1 ou 2 phrases affichée sur la carte du dossier..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed"
                 />
               </div>
 
@@ -822,17 +1190,85 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
             </div>
           )}
 
-          {/* STEP 4: Story, Documents & Publication Payment (29,99 € minus Loyalty Discount) */}
+          {/* STEP 4: PDF Import (above text), Story, Documents & Publication Payment */}
           {step === 4 && (
             <div className="space-y-4">
+              {/* Dedicated PDF Import Area directly ABOVE the narrative text */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Importer un fichier PDF (optionnel)
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Ajoutez votre dossier, contrat, avis d'imposition ou justificatif au format PDF juste au-dessus du texte.
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,application/pdf"
+                    onChange={handlePdfImportChange}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => pdfInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Importer un PDF</span>
+                  </button>
+                </div>
+
+                {pdfUploadError && (
+                  <p className="text-[11px] text-rose-700 font-medium">{pdfUploadError}</p>
+                )}
+
+                {uploadedFiles.some((f) => f.name.toLowerCase().endsWith('.pdf')) && (
+                  <div className="space-y-1 pt-1">
+                    {uploadedFiles
+                      .map((file, idx) => ({ file, idx }))
+                      .filter(({ file }) => file.name.toLowerCase().endsWith('.pdf'))
+                      .map(({ file, idx }) => (
+                        <div
+                          key={`pdf-${file.name}-${idx}`}
+                          className="flex items-center justify-between text-xs text-slate-800 px-3 py-1.5 bg-white border border-slate-200 rounded-lg"
+                        >
+                          <span className="truncate font-medium flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span className="truncate">{file.name}</span>
+                            <span className="text-slate-400 font-normal">({file.sizeLabel})</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setUploadedFiles((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="text-slate-400 hover:text-rose-600 ml-2 p-0.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
                   Explication détaillée de votre besoin pour l'investisseur *
                 </label>
                 <textarea
-                  rows={3}
+                  rows={4}
                   required
-                  placeholder="Expliquez pourquoi vous sollicitez ce financement ou ce rachat de dette, et comment vous garantissez le remboursement..."
+                  placeholder="Expliquez pourquoi vous sollicitez ce financement ou ce rachat de dette, et comment vous garantissez le remboursement (ou demandez à SolvaSolution ci-dessus de le rédiger pour vous)..."
                   value={contextStory}
                   onChange={(e) => setContextStory(e.target.value)}
                   className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed"
@@ -929,7 +1365,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                         {loyalty.isFreePublicationNow
                           ? 'Avantage Diamond : ce 5e dossier est 100 % OFFERT (0 €) !'
                           : loyalty.isDiamond
-                          ? `Membre Officiel Fidèle Diamond (-45 %) · Prochain dossier offert dans ${loyalty.dossiersUntilFreePublication} publication(s)`
+                          ? `Membre Prestigieux Officiel (-45 %) · Prochain dossier offert dans ${loyalty.dossiersUntilFreePublication} publication(s)`
                           : loyalty.discountPct > 0
                           ? `Réduction fidélité -${loyalty.discountPct} % appliquée`
                           : 'Compte Fidélité actif (Palier Bronze à 50 EXP)'}
@@ -969,7 +1405,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                       ✦ Dossier offert — Aucune carte bancaire requise
                     </p>
                     <p className="text-[11px] text-cyan-100/90 leading-relaxed">
-                      En tant que Membre Officiel Fidèle Diamond, votre 5e dossier est publié gratuitement (0 €) avec mise en avant prioritaire automatique.
+                      En tant que Membre Prestigieux Officiel (Diamond), votre 5e dossier est publié gratuitement (0 €) avec mise en avant prioritaire automatique.
                     </p>
                   </div>
                 ) : (

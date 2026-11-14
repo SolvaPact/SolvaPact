@@ -5,8 +5,25 @@ interface ChatTurn {
   text: string;
 }
 
+function cleanSolvaSolutionText(text: string): string {
+  return text
+    .replace(/\[ESCALADE_HUMAIN\]/g, '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[*•]+\s+/gm, '— ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/`+/g, '')
+    .replace(/(^|\s)#{1,6}(\s|$)/g, '$1$2')
+    .replace(/\*{2,}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const SOLVASOLUTION_SYSTEM_INSTRUCTION = `Tu es SolvaSolution, l'assistant IA officiel du service d'aide de la plateforme SolvaPact.
-Tu réponds en français, de façon claire, bienveillante, précise et rapide (va droit au but en 3 à 6 phrases ou points courts, sauf si le client te demande de rédiger un dossier complet).
+Tu réponds en français, de façon claire, bienveillante, précise et rapide (va droit au but en 3 à 6 phrases courtes, sauf si le client te demande de rédiger un dossier complet).
+
+FORMAT D'ÉCRITURE OBLIGATOIRE : Rédige toujours en texte clair, naturel et agréable à lire avec des phrases simples et des paragraphes aérés. N'utilise JAMAIS de symboles Markdown comme #, ##, ###, *, **, _, \` ou de listes à astérisques ou puces symboliques. Écris des phrases fluides ou de simples sauts de ligne numérotés (1., 2., 3.) si nécessaire.
 
 === CE QUE TU DOIS SAVOIR SUR LE FONCTIONNEMENT DE SOLVAPACT ===
 1. Inscription gratuite obligatoire & Conditions d'Utilisation :
@@ -26,10 +43,10 @@ Tu réponds en français, de façon claire, bienveillante, précise et rapide (v
    - Quand un accord est conclu, le créateur du dossier peut cliquer sur « Marquer ce dossier comme accepté » sur son dossier.
 5. Compte Fidélité SolvaPact (80 € en une seule fois à vie) :
    - Chaque dossier publié rapporte +10 EXP.
-   - Palier Bronze (50 EXP) : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
-   - Palier Silver (150 EXP) : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
-   - Palier Gold (300 EXP) : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
-   - Palier Diamond (500 EXP, titre officiel « Membre Officiel Fidèle Diamond ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
+   - Palier Bronze (50 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
+   - Palier Silver (150 EXP, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
+   - Palier Gold (300 EXP, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
+   - Palier Diamond (500 EXP, titre officiel « Membre Prestigieux Officiel ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
 6. Cadre légal, réseaux sociaux & contact officiel :
    - Les accords conclus entre membres s'inscrivent dans le cadre du Code Civil français (articles 1892 et 2044, protocole sous seing privé).
    - Réseaux sociaux officiels (actualités, conseils et retours d'expérience bienvenus) : Instagram (@solvapact), Facebook (Solva Pact) et LinkedIn (Solva Pact).
@@ -197,7 +214,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const suggestHumanSupport = rawText.includes('[ESCALADE_HUMAIN]');
-    const cleanReply = rawText.replace(/\[ESCALADE_HUMAIN\]/g, '').trim();
+    const cleanReply = cleanSolvaSolutionText(rawText);
 
     return res.json({
       reply: cleanReply,

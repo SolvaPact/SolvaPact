@@ -5,6 +5,21 @@ import path from 'path';
 import fs from 'fs';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
+function cleanSolvaSolutionText(text: string): string {
+  return text
+    .replace(/\[ESCALADE_HUMAIN\]/g, '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[*•]+\s+/gm, '— ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/`+/g, '')
+    .replace(/(^|\s)#{1,6}(\s|$)/g, '$1$2')
+    .replace(/\*{2,}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const PORT = Number(process.env.PORT) || 3000;
 const TICKETS_FILE = path.resolve('.support-tickets.json');
 const ANALYTICS_FILE = path.resolve('.analytics-data.json');
@@ -76,7 +91,9 @@ interface ReportDispatchRecord {
 }
 
 const SOLVASOLUTION_SYSTEM_INSTRUCTION = `Tu es SolvaSolution, l'assistant IA officiel du service d'aide de la plateforme SolvaPact.
-Tu réponds en français, de façon claire, bienveillante, précise et rapide (va droit au but en 3 à 6 phrases ou points courts, sauf si le client te demande de rédiger un dossier complet).
+Tu réponds en français, de façon claire, bienveillante, précise et rapide (va droit au but en 3 à 6 phrases courtes, sauf si le client te demande de rédiger un dossier complet).
+
+FORMAT D'ÉCRITURE OBLIGATOIRE : Rédige toujours en texte clair, naturel et agréable à lire avec des phrases simples et des paragraphes aérés. N'utilise JAMAIS de symboles Markdown comme #, ##, ###, *, **, _, \` ou de listes à astérisques ou puces symboliques. Écris des phrases fluides ou de simples sauts de ligne numérotés (1., 2., 3.) si nécessaire.
 
 === CE QUE TU DOIS SAVOIR SUR LE FONCTIONNEMENT DE SOLVAPACT ===
 1. Inscription gratuite obligatoire & Conditions d'Utilisation :
@@ -96,10 +113,10 @@ Tu réponds en français, de façon claire, bienveillante, précise et rapide (v
    - Quand un accord est conclu, le créateur du dossier peut cliquer sur « Marquer ce dossier comme accepté » sur son dossier.
 5. Compte Fidélité SolvaPact (80 € en une seule fois à vie) :
    - Chaque dossier publié rapporte +10 EXP.
-   - Palier Bronze (50 EXP) : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
-   - Palier Silver (150 EXP) : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
-   - Palier Gold (300 EXP) : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
-   - Palier Diamond (500 EXP, titre officiel « Membre Officiel Fidèle Diamond ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
+   - Palier Bronze (50 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
+   - Palier Silver (150 EXP, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
+   - Palier Gold (300 EXP, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
+   - Palier Diamond (500 EXP, titre « Membre Prestigieux Officiel ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
 6. Cadre légal, réseaux sociaux & contact officiel :
    - Les accords conclus entre membres s'inscrivent dans le cadre du Code Civil français (articles 1892 et 2044, protocole sous seing privé).
    - Réseaux sociaux officiels (actualités, conseils et retours d'expérience bienvenus) : Instagram (@solvapact), Facebook (Solva Pact) et LinkedIn (Solva Pact).
@@ -423,33 +440,61 @@ async function startServer() {
         },
       ];
 
-      const callGemini = async () =>
-        ai.models.generateContent({
-          model: 'gemini-4-hydrogen',
-          contents,
-          config: {
-            systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          },
-        });
+      const modelAttempts: Array<{ model: string; useThinkingLevel: boolean }> = [
+        { model: 'gemini-4-hydrogen', useThinkingLevel: true },
+        { model: 'gemini-3.1-flash-lite', useThinkingLevel: true },
+        { model: 'gemini-2.5-flash', useThinkingLevel: false },
+      ];
 
       let response;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      let lastError: any = null;
+      for (const candidate of modelAttempts) {
         try {
-          response = await callGemini();
+          response = await ai.models.generateContent({
+            model: candidate.model,
+            contents,
+            config: {
+              systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
+              ...(candidate.useThinkingLevel
+                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                : {}),
+            },
+          });
+          lastError = null;
           break;
-        } catch (err) {
-          console.warn(`SolvaSolution attempt ${attempt + 1} failed:`, err);
-          if (attempt === 2) throw err;
-          await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`SolvaSolution chat model ${candidate.model} failed:`, err?.message || err);
+          const msg = String(err?.message || err || '').toLowerCase();
+          const status = err?.status || err?.code;
+          if (status === 404 || msg.includes('404') || msg.includes('not_found') || msg.includes('not found')) {
+            continue;
+          }
+          try {
+            await new Promise((r) => setTimeout(r, 500));
+            response = await ai.models.generateContent({
+              model: candidate.model,
+              contents,
+              config: {
+                systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
+                ...(candidate.useThinkingLevel
+                  ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                  : {}),
+              },
+            });
+            lastError = null;
+            break;
+          } catch (retryErr) {
+            lastError = retryErr;
+          }
         }
       }
 
-      if (!response) {
-        throw new Error('Empty response from Gemini');
+      if (lastError && !response) {
+        throw lastError;
       }
 
-      const rawText = (response.text || '').trim();
+      const rawText = (response?.text || '').trim();
       if (!rawText) {
         res.json({
           reply:
@@ -460,7 +505,7 @@ async function startServer() {
       }
 
       const suggestHumanSupport = rawText.includes('[ESCALADE_HUMAIN]');
-      const cleanReply = rawText.replace(/\[ESCALADE_HUMAIN\]/g, '').trim();
+      const cleanReply = cleanSolvaSolutionText(rawText);
 
       res.json({
         reply: cleanReply,
@@ -473,6 +518,176 @@ async function startServer() {
         error:
           "SolvaSolution rencontre une difficulté momentanée. Vous pouvez transmettre votre question directement à notre équipe ci-contre.",
         suggestHumanSupport: true,
+      });
+    }
+  });
+
+  app.post('/api/solvasolution/draft', async (req: Request, res: Response) => {
+    try {
+      const { step, userPrompt, dossierContext, userName } = req.body as {
+        step?: number;
+        userPrompt?: string;
+        userName?: string;
+        dossierContext?: {
+          type?: string;
+          category?: string;
+          title?: string;
+          description?: string;
+          amountRequested?: number;
+          originalDebtAmount?: number;
+          targetInterestRate?: number;
+          termMonths?: number;
+          maxMonthlyPayment?: number;
+          monthlyIncome?: number;
+          existingCharges?: number;
+          guaranteeType?: string;
+          contextStory?: string;
+          attachedFiles?: string[];
+        };
+      };
+
+      const stepNumber = Number(step);
+      if (![1, 2, 3, 4].includes(stepNumber)) {
+        res.status(400).json({ error: 'Étape de dossier invalide.' });
+        return;
+      }
+
+      if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
+        res.status(400).json({ error: 'Décrivez brièvement votre besoin pour que SolvaSolution rédige pour vous.' });
+        return;
+      }
+
+      const ai = getAiClient();
+      if (!ai) {
+        res.status(503).json({
+          error: "Le service IA SolvaSolution n'est pas encore configuré avec une clé API.",
+        });
+        return;
+      }
+
+      const ctx = dossierContext || {};
+      const attachedList =
+        Array.isArray(ctx.attachedFiles) && ctx.attachedFiles.length > 0
+          ? ctx.attachedFiles.slice(0, 8).join(', ')
+          : 'Aucun fichier importé pour le moment';
+
+      const stepFormat =
+        stepNumber === 1
+          ? `Retourne UNIQUEMENT ces 3 balises exactes :
+[[TITRE]]un titre clair, sérieux et percutant de 6 à 14 mots[[/TITRE]]
+[[RESUME]]un résumé court et rassurant de 1 à 2 phrases pour la carte du dossier[[/RESUME]]
+[[CONSEIL]]une phrase brève pour confirmer la rédaction au client[[/CONSEIL]]`
+          : stepNumber === 2
+          ? `Cette étape ne contient que des chiffres. Ne propose pas de modifier les montants. Retourne UNIQUEMENT :
+[[CONSEIL]]ta réponse claire et brève de 2 à 4 phrases en texte naturel pour aider le client sur ses montants ou sa durée[[/CONSEIL]]`
+          : stepNumber === 3
+          ? `Retourne UNIQUEMENT ces 2 balises exactes :
+[[GARANTIE]]une phrase claire, sérieuse et crédible formulant la garantie réelle décrite par le client sans rien inventer[[/GARANTIE]]
+[[CONSEIL]]une phrase brève pour confirmer la formulation au client[[/CONSEIL]]`
+          : `Retourne UNIQUEMENT ces 2 balises exactes :
+[[EXPOSE]]un texte complet, structuré et convaincant en 3 à 4 paragraphes bien aérés présentant le besoin, l'usage exact des fonds, le sérieux du remboursement et les justificatifs (${attachedList})[[/EXPOSE]]
+[[CONSEIL]]une phrase brève pour confirmer la rédaction de l'exposé au client[[/CONSEIL]]`;
+
+      const draftPrompt = `Tu es SolvaSolution, l'assistant de rédaction de dossiers de la plateforme SolvaPact.
+Règle absolue : Rédige en français naturel, clair et fluide. N'utilise JAMAIS de symboles Markdown (#, *, **, _, \`) ni de listes à astérisques. N'invente jamais de faux chiffres.
+
+Client : ${typeof userName === 'string' && userName.trim() ? userName.trim().slice(0, 60) : 'Membre SolvaPact'}
+Contexte : Type=${ctx.type || 'dette'}, Catégorie=${ctx.category || 'Particulier & Pro'}, Montant=${ctx.amountRequested || 0} €, Durée=${ctx.termMonths || 36} mois, Revenus=${ctx.monthlyIncome || 0} €/mois, Charges=${ctx.existingCharges || 0} €/mois, Pièces=${attachedList}.
+
+Demande du client :
+"${userPrompt.trim().slice(0, 2000)}"
+
+${stepFormat}`;
+
+      const modelAttempts: Array<{ model: string; useThinkingLevel: boolean }> = [
+        { model: 'gemini-4-hydrogen', useThinkingLevel: true },
+        { model: 'gemini-3.1-flash-lite', useThinkingLevel: true },
+        { model: 'gemini-2.5-flash', useThinkingLevel: false },
+      ];
+
+      let response;
+      let lastError: any = null;
+      for (const candidate of modelAttempts) {
+        try {
+          response = await ai.models.generateContent({
+            model: candidate.model,
+            contents: draftPrompt,
+            config: {
+              ...(candidate.useThinkingLevel
+                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                : {}),
+            },
+          });
+          lastError = null;
+          break;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`SolvaSolution draft model ${candidate.model} failed:`, err?.message || err);
+        }
+      }
+
+      if (lastError && !response) {
+        throw lastError;
+      }
+
+      const rawOutput = (response?.text || '').trim();
+      const extractTag = (tag: string): string => {
+        const match = rawOutput.match(new RegExp(`\\[\\[${tag}\\]\\]([\\s\\S]*?)\\[\\[\\/${tag}\\]\\]`, 'i'));
+        return match?.[1] ? cleanSolvaSolutionText(match[1]) : '';
+      };
+
+      const title = extractTag('TITRE');
+      const description = extractTag('RESUME');
+      const guaranteeType = extractTag('GARANTIE');
+      let contextStory = extractTag('EXPOSE');
+      let coachMessage = extractTag('CONSEIL');
+
+      // Fallback if model omitted tags
+      if (!title && !description && !guaranteeType && !contextStory && rawOutput) {
+        const cleaned = cleanSolvaSolutionText(rawOutput);
+        if (stepNumber === 1) {
+          const lines = cleaned.split('\n').map((l) => l.trim()).filter(Boolean);
+          res.json({
+            title: (lines[0] || cleaned).slice(0, 120),
+            description: lines.slice(1).join(' ').slice(0, 350),
+            guaranteeType: '',
+            contextStory: '',
+            coachMessage: 'Titre et résumé rédigés et insérés dans votre dossier.',
+          });
+          return;
+        } else if (stepNumber === 3) {
+          res.json({
+            title: '',
+            description: '',
+            guaranteeType: cleaned.slice(0, 250),
+            contextStory: '',
+            coachMessage: 'Garantie formulée et insérée dans votre dossier.',
+          });
+          return;
+        } else if (stepNumber === 4) {
+          contextStory = cleaned;
+          coachMessage = 'Exposé détaillé rédigé et inséré dans votre dossier.';
+        } else {
+          coachMessage = cleaned;
+        }
+      }
+
+      res.json({
+        title,
+        description,
+        guaranteeType,
+        contextStory,
+        coachMessage:
+          coachMessage ||
+          (stepNumber === 2
+            ? 'Voici la recommandation de SolvaSolution.'
+            : 'Texte rédigé et appliqué dans votre dossier.'),
+      });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Erreur inconnue';
+      console.error('SolvaSolution Draft API error:', errMsg);
+      res.status(500).json({
+        error: 'SolvaSolution rencontre une difficulté momentanée pour rédiger ce texte. Vous pouvez réessayer ou saisir votre texte manuellement.',
       });
     }
   });

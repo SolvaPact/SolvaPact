@@ -9,11 +9,13 @@ import {
   getLoyaltyStatus,
 } from '../utils/finance';
 import {
+  ArrowRight,
   Bot,
   Check,
   Clock,
   Copy,
   ExternalLink,
+  FileText,
   HelpCircle,
   Mail,
   MessageSquare,
@@ -24,9 +26,23 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+function sanitizeDisplayText(text: string): string {
+  return text
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[*•]+\s+/gm, '— ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/`+/g, '')
+    .replace(/\*{2,}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 interface HelpViewProps {
   onNavigateToTab: (tab: any) => void;
   currentUser?: User | null;
+  onStartGuidedDossier?: () => void;
 }
 
 interface AiChatMessage {
@@ -46,7 +62,11 @@ const STARTER_QUESTIONS = [
   'Y a-t-il une commission sur les fonds ?',
 ];
 
-export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser }) => {
+export const HelpView: React.FC<HelpViewProps> = ({
+  onNavigateToTab,
+  currentUser,
+  onStartGuidedDossier,
+}) => {
   const ownerEmail = 'solvapact.vercel.app@gmail.com';
   const loyalty = getLoyaltyStatus(currentUser);
 
@@ -180,10 +200,11 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
         throw new Error('Invalid JSON response');
       }
 
-      const replyText =
+      const rawReplyText =
         data.reply ||
         data.error ||
         "Je ne parviens pas à répondre pour le moment. Vous pouvez transmettre directement votre question au responsable de SolvaPact ci-contre.";
+      const replyText = sanitizeDisplayText(rawReplyText);
 
       setMessages((prev) => [
         ...prev,
@@ -237,11 +258,11 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
 
     const transcript = includeAiTranscript ? buildTranscriptText() : undefined;
     const priorityPrefix = loyalty.isDiamond
-      ? '[PRIORITAIRE · MEMBRE OFFICIEL FIDÈLE DIAMOND] '
+      ? '[PRIORITAIRE · MEMBRE PRESTIGIEUX OFFICIEL] '
       : '';
     const subjectLine = `${priorityPrefix}[Support SolvaPact] ${subjectMap[subject] || "Demande d'aide"}`;
     const bodyContent = `Bonjour,${
-      loyalty.isDiamond ? '\nStatut client : Membre Officiel Fidèle Diamond (Traitement prioritaire)' : ''
+      loyalty.isDiamond ? '\nStatut client : Membre Prestigieux Officiel Diamond (Traitement prioritaire)' : ''
     }\n\nNom : ${name}\nEmail : ${email}\nSujet : ${
       subjectMap[subject] || subject
     }\n\nMessage du client :\n${message}${
@@ -449,6 +470,23 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
               <Send className="w-3.5 h-3.5" />
             </button>
           </form>
+
+          {onStartGuidedDossier && (
+            <div className="px-4 py-3 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <span className="text-[11px] text-slate-300">
+                Accompagnement rédactionnel IA à chaque étape de votre dossier :
+              </span>
+              <button
+                type="button"
+                onClick={onStartGuidedDossier}
+                className="sm:ml-auto px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors shadow-sm shrink-0 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Faire mon dossier avec SolvaSolution</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* RIGHT: Direct Human Escalation Form (5 cols) */}
@@ -475,7 +513,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
 
             {loyalty.isDiamond && (
               <div className="p-3 rounded-xl bg-cyan-50 border border-cyan-200 text-xs text-cyan-900 font-semibold">
-                ✦ Traitement prioritaire activé · Votre statut Membre Officiel Fidèle Diamond est transmis automatiquement avec votre ticket.
+                ✦ Traitement prioritaire activé · Votre statut Membre Prestigieux Officiel (Diamond) est transmis automatiquement avec votre ticket.
               </div>
             )}
 
@@ -684,7 +722,7 @@ export const HelpView: React.FC<HelpViewProps> = ({ onNavigateToTab, currentUser
               Comment fonctionne le Compte Fidélité à {formatEuro(LOYALTY_ACTIVATION_PRICE)} ?
             </h4>
             <p className="text-slate-600 leading-relaxed text-xs">
-              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 50 EXP = Bronze (-10 %), 150 EXP = Silver (-17 %), 300 EXP = Gold (-23 %), 500 EXP = <strong>Diamond (-45 % soit 16,49 €, 1 dossier offert tous les 5 dossiers, titre Membre Officiel Fidèle Diamond, mise en avant et support prioritaires)</strong>.
+              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 50 EXP = Bronze (Membre Vérifié, -10 %), 150 EXP = Silver (Membre Fidèle, -17 %), 300 EXP = Gold (Membre Précieux, -23 %), 500 EXP = <strong>Diamond (Membre Prestigieux Officiel, -45 % soit 16,49 €, 1 dossier offert tous les 5 dossiers, mise en avant et support prioritaires)</strong>.
             </p>
           </div>
 

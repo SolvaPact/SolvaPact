@@ -122,7 +122,14 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
 
             <div className="flex items-center gap-3 text-xs">
               {currentUser && (
-                <span className={nameColorLight}>{currentUser.name}</span>
+                <div className="flex flex-col text-right leading-tight">
+                  {loyalty.active && loyalty.badgeTitle && (
+                    <span className={`${nameColorLight} text-[9px] uppercase tracking-wider`}>
+                      {loyalty.badgeTitle}
+                    </span>
+                  )}
+                  <span className={nameColorLight}>{currentUser.name}</span>
+                </div>
               )}
               {!hasScrolledToBottom ? (
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
@@ -349,7 +356,12 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
                 <span className="font-black text-amber-800 uppercase">Palier Bronze · 50 EXP</span>
                 <span className="font-mono font-bold text-amber-900">-10 %</span>
               </div>
-              <p className="text-sm font-bold text-amber-800">Nom de compte Bronze</p>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block leading-none">
+                  Membre Vérifié
+                </span>
+                <p className="text-sm font-bold text-amber-800">Nom de compte Bronze</p>
+              </div>
               <p className="text-slate-600 leading-relaxed">
                 Dès 50 EXP, la publication de dossier passe à{' '}
                 <strong>{formatEuro(26.99)}</strong> au lieu de {formatEuro(BASE_PUBLICATION_PRICE)}.
@@ -361,7 +373,12 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
                 <span className="font-black text-slate-600 uppercase">Palier Silver · 150 EXP</span>
                 <span className="font-mono font-bold text-slate-800">-17 %</span>
               </div>
-              <p className="text-sm font-bold text-slate-500">Nom de compte Silver</p>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-none">
+                  Membre Fidèle
+                </span>
+                <p className="text-sm font-bold text-slate-500">Nom de compte Silver</p>
+              </div>
               <p className="text-slate-600 leading-relaxed">
                 À 150 EXP cumulés, bénéficiez de -17 % sur chaque publication ({formatEuro(24.89)}).
               </p>
@@ -372,7 +389,12 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
                 <span className="font-black text-amber-600 uppercase">Palier Gold · 300 EXP</span>
                 <span className="font-mono font-bold text-amber-700">-23 %</span>
               </div>
-              <p className="text-sm font-bold text-amber-500">Nom de compte Gold</p>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 block leading-none">
+                  Membre Précieux
+                </span>
+                <p className="text-sm font-bold text-amber-500">Nom de compte Gold</p>
+              </div>
               <p className="text-slate-600 leading-relaxed">
                 À 300 EXP, obtenez -23 % permanents sur toutes vos publications ({formatEuro(23.09)}).
               </p>
@@ -383,7 +405,12 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
                 <span className="font-black text-cyan-700 uppercase">Palier Diamond · 500 EXP</span>
                 <span className="font-mono font-extrabold text-cyan-800">-45 %</span>
               </div>
-              <p className="text-sm font-extrabold text-cyan-600">Membre Officiel Fidèle Diamond</p>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-600 block leading-none">
+                  Membre Prestigieux Officiel
+                </span>
+                <p className="text-sm font-extrabold text-cyan-600">Nom de compte Diamond</p>
+              </div>
               <p className="text-slate-700 leading-relaxed">
                 À 500 EXP : <strong>-45 %</strong> ({formatEuro(16.49)}), <strong>1 dossier offert (0 €)</strong> tous les 5 dossiers, mise en avant & support prioritaires.
               </p>

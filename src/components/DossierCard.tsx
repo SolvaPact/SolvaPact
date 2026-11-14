@@ -53,7 +53,7 @@ export const DossierCard: React.FC<DossierCardProps> = ({
         {isDiamond && (
           <div className="text-[11px] font-extrabold text-cyan-700 tracking-wide mb-1.5 flex items-center gap-1.5">
             <span aria-hidden="true">✦</span>
-            <span>Membre Officiel Fidèle Diamond · Mise en avant prioritaire</span>
+            <span>Membre Prestigieux Officiel · Mise en avant prioritaire</span>
           </div>
         )}
         {/* Unboxed Metadata Header */}
@@ -174,9 +174,16 @@ export const DossierCard: React.FC<DossierCardProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-slate-500 text-[11px]">
-            <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
-              {dossier.applicant.pseudonym}
-            </span>
+            <div className="inline-flex flex-col leading-tight">
+              {dossier.applicant.loyaltyTitle && (
+                <span className={`${getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)} text-[9px] uppercase tracking-wider`}>
+                  {dossier.applicant.loyaltyTitle}
+                </span>
+              )}
+              <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
+                {dossier.applicant.pseudonym}
+              </span>
+            </div>
             <span aria-hidden="true">·</span>
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
