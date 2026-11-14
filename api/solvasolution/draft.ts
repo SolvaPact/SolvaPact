@@ -237,6 +237,44 @@ export default async function handler(req: any, res: any) {
         ? ctx.attachedFiles.slice(0, 8).join(', ')
         : 'Aucun fichier importé pour le moment';
 
+    const hasRealFinances =
+      typeof ctx.monthlyIncome === 'number' && Number.isFinite(ctx.monthlyIncome) && ctx.monthlyIncome > 0;
+    const financeContextLine = hasRealFinances
+      ? `Revenus déclarés=${ctx.monthlyIncome} €/mois, Charges déclarées=${typeof ctx.existingCharges === 'number' ? ctx.existingCharges : 0} €/mois`
+      : `Revenus=NON RENSEIGNÉS (INTERDICTION ABSOLUE d'inventer, supposer ou mentionner un salaire, un revenu mensuel ou des charges fixes)`;
+
+    const VALID_TERMS = [12, 24, 36, 48, 60, 72, 84, 120];
+    const snapTermMonths = (val: number) =>
+      VALID_TERMS.reduce((best, curr) =>
+        Math.abs(curr - val) < Math.abs(best - val) ? curr : best
+      , 48);
+
+    const computeAnnuityMonthly = (principal: number, annualRate: number, months: number) => {
+      if (principal <= 0 || months <= 0) return 0;
+      const r = annualRate / 100 / 12;
+      if (r === 0) return Math.round(principal / months);
+      return Math.round((principal * r) / (1 - Math.pow(1 + r, -months)));
+    };
+
+    const extractAmountFromPrompt = (text: string, fallback: number) => {
+      const kMatch = text.match(/\b(\d{1,3})\s*k\b/i);
+      if (kMatch) {
+        const val = Number(kMatch[1]) * 1000;
+        if (val >= 500 && val <= 1000000) return val;
+      }
+      const euroMatch = text.match(/(\d[\d\s\u00a0.]{1,9})\s*(?:€|euros?)/i);
+      if (euroMatch) {
+        const digits = Number(euroMatch[1].replace(/[^\d]/g, ''));
+        if (digits >= 500 && digits <= 1000000) return digits;
+      }
+      const numMatch = text.match(/\b(\d{4,7})\b/);
+      if (numMatch) {
+        const digits = Number(numMatch[1]);
+        if (digits >= 500 && digits <= 1000000) return digits;
+      }
+      return fallback >= 500 ? fallback : 10000;
+    };
+
     const stepFormat =
       stepNumber === 1
         ? `Analyse la demande du client. S'il s'agit d'un financement de projet, d'une construction, d'achat de matériel ou de création (ex: école, commerce, entreprise), le bon onglet est obligatoirement investissement (et non dette). S'il s'agit de rembourser ou racheter des dettes/crédits/découverts, le bon onglet est dette.
@@ -247,21 +285,27 @@ Retourne OBLIGATOIREMENT ces 5 balises exactes (chacune remplie avec soin) :
 [[RESUME]]un résumé d'accroche complet et rassurant de 2 phrases bien construites donnant envie à un investisseur d'ouvrir le dossier[[/RESUME]]
 [[CONSEIL]]une phrase brève informant le client (mentionne s'il y a eu réorientation vers Investissement/Dette et rappelle de vérifier le montant éventuel à l'étape 2)[[/CONSEIL]]`
         : stepNumber === 2
-        ? `Cette étape ne contient que des chiffres. Ne modifie aucun chiffre. Retourne UNIQUEMENT :
-[[CONSEIL]]ta réponse claire, directe et précise de 2 à 5 phrases en texte naturel répondant exactement à la question du client sur ses montants, sa durée ou son taux[[/CONSEIL]]`
+        ? `Résume brièvement la demande du client (montant et projet si précisés) et propose les meilleurs délais/conditions (montant, durée parmi 12, 24, 36, 48, 60, 72, 84 ou 120 mois, taux annuel réaliste et mensualité).
+Ne cite JAMAIS de salaire ou de charges si Revenus=NON RENSEIGNÉS. Ne dis JAMAIS "je reste à votre disposition pour finaliser", termine plutôt en invitant le client à cliquer sur "OK, ça me va" juste en dessous si ces conditions lui conviennent.
+Retourne OBLIGATOIREMENT ces 5 balises exactes :
+[[CONSEIL]]réponse claire en 2 à 4 phrases sans aucun symbole Markdown résumant la demande et expliquant pourquoi cette durée et cette mensualité sont optimales[[/CONSEIL]]
+[[MONTANT]]nombre entier en euros (ex: 13000)[[/MONTANT]]
+[[DUREE]]un seul nombre parmi 12, 24, 36, 48, 60, 72, 84, 120[[/DUREE]]
+[[TAUX]]nombre décimal du taux annuel proposé entre 3.0 et 12.0 (ex: 6.0)[[/TAUX]]
+[[MENSUALITE]]nombre entier en euros de la mensualité mensuelle conseillée[[/MENSUALITE]]`
         : stepNumber === 3
         ? `Retourne UNIQUEMENT ces 2 balises exactes :
 [[GARANTIE]]une phrase claire, sérieuse et crédible formulant la garantie réelle décrite par le client sans rien inventer[[/GARANTIE]]
 [[CONSEIL]]une phrase brève pour confirmer la formulation au client[[/CONSEIL]]`
         : `Retourne UNIQUEMENT ces 2 balises exactes :
-[[EXPOSE]]un texte complet, structuré et convaincant en 3 paragraphes bien aérés présentant le besoin, l'usage exact des fonds, le sérieux du remboursement et les justificatifs (${attachedList})[[/EXPOSE]]
+[[EXPOSE]]un texte complet, structuré et convaincant en 3 paragraphes bien aérés présentant le besoin, l'usage exact des fonds, le sérieux du remboursement et les justificatifs (${attachedList}) sans inventer de salaire non communiqué[[/EXPOSE]]
 [[CONSEIL]]une phrase brève pour confirmer la rédaction de l'exposé au client[[/CONSEIL]]`;
 
     const draftPrompt = `Tu es SolvaSolution, l'assistant expert de SolvaPact.
-Règle absolue : Rédige en français naturel, clair et fluide. N'utilise JAMAIS de symboles Markdown (#, *, **, _, \`) ni de listes à astérisques. N'invente jamais de faux chiffres.
+Règle absolue : Rédige en français naturel, clair et fluide. N'utilise JAMAIS de symboles Markdown (#, *, **, _, \`) ni de listes à astérisques. N'invente JAMAIS de salaire, de revenus, de charges ou de faux chiffres non donnés par le client.
 
 Client : ${typeof userName === 'string' && userName.trim() ? userName.trim().slice(0, 60) : 'Membre SolvaPact'}
-Contexte actuel : Onglet sélectionné=${ctx.type || 'dette'}, Sous-domaine=${ctx.category || 'Particulier & Pro'}, Montant=${ctx.amountRequested || 0} €, Durée=${ctx.termMonths || 36} mois, Revenus=${ctx.monthlyIncome || 0} €/mois, Charges=${ctx.existingCharges || 0} €/mois, Pièces=${attachedList}.
+Contexte actuel : Onglet sélectionné=${ctx.type || 'dette'}, Sous-domaine=${ctx.category || 'Particulier & Pro'}, Montant actuel=${ctx.amountRequested || 10000} €, Durée actuelle=${ctx.termMonths || 36} mois, ${financeContextLine}, Pièces=${attachedList}.
 
 Message du client :
 "${userPrompt.trim().slice(0, 2000)}"
@@ -301,11 +345,11 @@ ${stepFormat}`;
             model: candidate.model,
             contents: draftPrompt,
             config: {
-              maxOutputTokens: stepNumber === 4 ? 850 : 550,
+              maxOutputTokens: stepNumber === 4 ? 850 : 600,
               ...thinkingConfig,
             },
           }),
-          9500,
+          8500,
           candidate.model
         );
         cachedWorkingDraftModel = candidate.model;
@@ -360,6 +404,15 @@ ${stepFormat}`;
       rawOutput.replace(/\[\[\/?[A-ZÉÀÈÊÔÛÎ_]+\]\]/gi, '\n')
     );
 
+    let proposedTerms:
+      | {
+          amountRequested: number;
+          termMonths: number;
+          targetInterestRate?: number;
+          maxMonthlyPayment: number;
+        }
+      | undefined;
+
     if (stepNumber === 1) {
       const lines = cleanedAll
         .split('\n')
@@ -396,8 +449,55 @@ ${stepFormat}`;
           : `Onglet ${tabLabel} (${recommendedCategory}) confirmé : titre et résumé d'accroche rédigés dans votre dossier.`;
       }
     } else if (stepNumber === 2) {
+      const rawAmount = extractFlexibleTag(rawOutput, ['MONTANT']);
+      const rawDuration = extractFlexibleTag(rawOutput, ['DUREE', 'DURÉE']);
+      const rawRate = extractFlexibleTag(rawOutput, ['TAUX']);
+      const rawMonthly = extractFlexibleTag(rawOutput, ['MENSUALITE', 'MENSUALITÉ']);
+
+      const fallbackAmount = extractAmountFromPrompt(userPrompt, Number(ctx.amountRequested) || 10000);
+      const parsedAmountNum = Number(rawAmount.replace(/[^\d]/g, ''));
+      const finalAmount =
+        parsedAmountNum >= 500 && parsedAmountNum <= 1000000 ? parsedAmountNum : fallbackAmount;
+
+      const parsedDurationNum = Number(rawDuration.replace(/[^\d]/g, ''));
+      const defaultTerm = finalAmount >= 25000 ? 60 : finalAmount >= 12000 ? 48 : 36;
+      const finalDuration = snapTermMonths(
+        parsedDurationNum >= 12 && parsedDurationNum <= 120
+          ? parsedDurationNum
+          : Number(ctx.termMonths) || defaultTerm
+      );
+
+      const parsedRateNum = Number(rawRate.replace(',', '.').replace(/[^\d.]/g, ''));
+      const baseRate =
+        ctx.type === 'dette'
+          ? 5.5
+          : parsedRateNum >= 1 && parsedRateNum <= 15
+          ? Math.round(parsedRateNum * 10) / 10
+          : Number(ctx.targetInterestRate) || 6.0;
+
+      const exactMonthly = computeAnnuityMonthly(finalAmount, baseRate, finalDuration);
+      const parsedMonthlyNum = Number(rawMonthly.replace(/[^\d]/g, ''));
+      const advisedBudget =
+        parsedMonthlyNum >= exactMonthly && parsedMonthlyNum <= exactMonthly * 1.5
+          ? parsedMonthlyNum
+          : Math.max(exactMonthly, Math.ceil(exactMonthly / 10) * 10);
+
+      proposedTerms = {
+        amountRequested: finalAmount,
+        termMonths: finalDuration,
+        targetInterestRate: ctx.type === 'dette' ? undefined : baseRate,
+        maxMonthlyPayment: advisedBudget,
+      };
+
       if (!coachMessage) {
-        coachMessage = cleanedAll || 'Voici la recommandation de SolvaSolution.';
+        coachMessage = cleanedAll.split('\n')[0] || `Pour un besoin de ${finalAmount} €, une durée de ${finalDuration} mois permet de viser environ ${exactMonthly} € par mois.`;
+      }
+      coachMessage = coachMessage
+        .replace(/je reste à votre disposition[^.!?\n]*[.!?]?/gi, '')
+        .replace(/n'hésitez pas à me solliciter[^.!?\n]*[.!?]?/gi, '')
+        .trim();
+      if (!coachMessage) {
+        coachMessage = `Voici ma proposition chiffrée pour ${finalAmount} € sur ${finalDuration} mois (environ ${exactMonthly} € par mois). Cliquez sur « OK, ça me va » ci-dessous pour remplir automatiquement votre dossier.`;
       }
     } else if (stepNumber === 3 && !guaranteeType && cleanedAll) {
       return res.json({
@@ -415,6 +515,7 @@ ${stepFormat}`;
     return res.json({
       recommendedType: stepNumber === 1 ? recommendedType : undefined,
       recommendedCategory,
+      proposedTerms,
       title,
       description,
       guaranteeType,

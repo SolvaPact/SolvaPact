@@ -11,14 +11,17 @@ export function isOwnerGoldEmail(email?: string | null): boolean {
   return OWNER_GOLD_EMAILS.includes(email.trim().toLowerCase());
 }
 
+export function canViewDailyReport(user?: User | null): boolean {
+  if (!user) return false;
+  const fullName = (user.name || `${user.firstName || ''} ${user.lastName || ''}`)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+  return fullName === 'hugo laumonier';
+}
+
 export function applyOwnerGoldStatus(user: User): User {
-  if (!isOwnerGoldEmail(user.email)) return user;
-  return {
-    ...user,
-    loyaltyActive: true,
-    loyaltyExp: Math.max(user.loyaltyExp || 0, 500),
-    loyaltyActivatedAt: user.loyaltyActivatedAt || new Date().toLocaleDateString('fr-FR'),
-  };
+  return user;
 }
 
 export interface LoyaltyStatus {
@@ -39,9 +42,8 @@ export interface LoyaltyStatus {
 }
 
 export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
-  const isOwner = isOwnerGoldEmail(user?.email);
-  const active = Boolean(user?.loyaltyActive) || isOwner;
-  const exp = isOwner ? Math.max(user?.loyaltyExp || 0, 500) : user?.loyaltyExp || 0;
+  const active = Boolean(user?.loyaltyActive);
+  const exp = user?.loyaltyExp || 0;
   const diamondCount = Math.max(0, user?.diamondPublicationsCount || 0);
 
   if (!active) {

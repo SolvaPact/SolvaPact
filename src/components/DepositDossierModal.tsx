@@ -29,6 +29,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import solvaBackdrop from '../assets/images/solvasolution_ai_backdrop_1794656956781.jpg';
+import { FuturisticPaymentOverlay } from './FuturisticPaymentOverlay';
 
 interface DepositDossierModalProps {
   isOpen: boolean;
@@ -89,6 +90,9 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const [monthlyIncome, setMonthlyIncome] = useState<number>(2600);
   const [existingCharges, setExistingCharges] = useState<number>(800);
 
+  // Applicant finances confirmation flag (prevents AI from quoting unentered defaults)
+  const [hasEnteredFinances, setHasEnteredFinances] = useState(false);
+
   // Documents (real user attachments)
   const [uploadedFiles, setUploadedFiles] = useState<AttachedFile[]>([]);
 
@@ -98,28 +102,39 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const [cvc, setCvc] = useState('');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [paymentPhase, setPaymentPhase] = useState<'verifying' | 'approved' | null>(null);
 
   // SolvaSolution Mini-Box State
   const [solvaInput, setSolvaInput] = useState('');
   const [isSolvaDrafting, setIsSolvaDrafting] = useState(false);
   const [solvaReply, setSolvaReply] = useState<string | null>(null);
   const [solvaError, setSolvaError] = useState<string | null>(null);
+  const [solvaProposal, setSolvaProposal] = useState<{
+    amountRequested: number;
+    termMonths: number;
+    targetInterestRate?: number;
+    maxMonthlyPayment: number;
+    applied?: boolean;
+  } | null>(null);
   const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     setSolvaInput('');
     setSolvaReply(null);
     setSolvaError(null);
+    setSolvaProposal(null);
   }, [step]);
 
   useEffect(() => {
     if (isOpen) {
       setType(defaultType);
+      setHasEnteredFinances(false);
       setPaymentError(null);
       setPdfUploadError(null);
       setSolvaInput('');
       setSolvaReply(null);
       setSolvaError(null);
+      setSolvaProposal(null);
       if (initialAmount && initialAmount >= 500) {
         setAmountRequested(initialAmount);
       }
@@ -286,11 +301,18 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 
     setSolvaError(null);
     setSolvaReply(null);
+    setSolvaProposal(null);
     setIsSolvaDrafting(true);
 
     const applyDraftFields = (fields: {
       recommendedType?: DossierType;
       recommendedCategory?: string;
+      proposedTerms?: {
+        amountRequested: number;
+        termMonths: number;
+        targetInterestRate?: number;
+        maxMonthlyPayment: number;
+      };
       title?: string;
       description?: string;
       guaranteeType?: string;
@@ -336,6 +358,10 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         );
         setSolvaInput('');
         return;
+      } else if (step === 2) {
+        if (fields.proposedTerms) {
+          setSolvaProposal({ ...fields.proposedTerms, applied: false });
+        }
       } else if (step === 3) {
         if (fields.guaranteeType?.trim()) setGuaranteeType(fields.guaranteeType.trim());
       } else if (step === 4) {
@@ -344,7 +370,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       setSolvaReply(
         fields.coachMessage?.trim() ||
           (step === 2
-            ? 'Conseil affiché ci-dessous (vos chiffres restent entièrement sous votre contrôle).'
+            ? 'Proposition prête ci-dessous : cliquez sur « OK, ça me va » pour l’appliquer automatiquement.'
             : 'Texte rédigé et inséré automatiquement dans votre dossier.')
       );
       setSolvaInput('');
@@ -365,8 +391,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
           targetInterestRate,
           termMonths,
           maxMonthlyPayment,
-          monthlyIncome,
-          existingCharges,
+          monthlyIncome: hasEnteredFinances ? monthlyIncome : undefined,
+          existingCharges: hasEnteredFinances ? existingCharges : undefined,
           guaranteeType,
           contextStory,
           attachedFiles: uploadedFiles.map((f) => f.name),
@@ -392,6 +418,12 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       let parsedData: {
         recommendedType?: DossierType;
         recommendedCategory?: string;
+        proposedTerms?: {
+          amountRequested: number;
+          termMonths: number;
+          targetInterestRate?: number;
+          maxMonthlyPayment: number;
+        };
         title?: string;
         description?: string;
         guaranteeType?: string;
@@ -423,10 +455,16 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 [[RESUME]]résumé d'accroche complet en 2 phrases rassurantes[[/RESUME]]
 Besoin : ${trimmed}`
             : step === 2
-            ? `Réponds clairement en texte naturel (sans #, * ni Markdown, en 3 à 5 phrases) à ma question précise sur mon financement (${amountRequested} € sur ${termMonths} mois) : ${trimmed}`
+            ? `Résume ma demande et propose les meilleurs délais/conditions SANS inventer aucun salaire ni charges (n'utilise jamais "je reste à votre disposition pour finaliser", ni de Markdown). Réponds exactement avec :
+[[CONSEIL]]réponse claire en 2 à 4 phrases[[/CONSEIL]]
+[[MONTANT]]montant en euros[[/MONTANT]]
+[[DUREE]]durée parmi 12, 24, 36, 48, 60, 72, 84, 120[[/DUREE]]
+[[TAUX]]6.0[[/TAUX]]
+[[MENSUALITE]]mensualité en euros[[/MENSUALITE]]
+Ma demande : ${trimmed}`
             : step === 3
             ? `Formule en une phrase claire et rassurante (sans #, * ni Markdown) la garantie suivante pour mon dossier avec [[GARANTIE]]...[[/GARANTIE]] : ${trimmed}`
-            : `Rédige l'exposé complet de mon dossier en 3 paragraphes clairs (sans #, * ni Markdown) avec [[EXPOSE]]...[[/EXPOSE]]. Contexte: ${amountRequested} € sur ${termMonths} mois, revenus ${monthlyIncome} €/mois. Mon texte : ${trimmed}`;
+            : `Rédige l'exposé complet de mon dossier en 3 paragraphes clairs (sans #, * ni Markdown et sans inventer de salaire non communiqué) avec [[EXPOSE]]...[[/EXPOSE]]. Contexte: ${amountRequested} € sur ${termMonths} mois${hasEnteredFinances ? `, revenus ${monthlyIncome} €/mois` : ''}. Mon texte : ${trimmed}`;
 
         const chatRes = await fetch('/api/solvasolution/chat', {
           method: 'POST',
@@ -514,7 +552,36 @@ Besoin : ${trimmed}`
             coachMessage: 'Exposé détaillé rédigé et inséré dans votre dossier.',
           });
         } else {
-          applyDraftFields({ coachMessage: replyStr });
+          const validTerms = [12, 24, 36, 48, 60, 72, 84, 120];
+          const snapTerm = (v: number) =>
+            validTerms.reduce((b, c) => (Math.abs(c - v) < Math.abs(b - v) ? c : b), 48);
+          const rawAmt = Number(pickFlexTag(['MONTANT']).replace(/[^\d]/g, ''));
+          const rawDur = Number(pickFlexTag(['DUREE', 'DURÉE']).replace(/[^\d]/g, ''));
+          const rawRate = Number(pickFlexTag(['TAUX']).replace(',', '.').replace(/[^\d.]/g, ''));
+          const pAmount = rawAmt >= 500 && rawAmt <= 1000000 ? rawAmt : amountRequested;
+          const pTerm = rawDur >= 12 && rawDur <= 120 ? snapTerm(rawDur) : termMonths;
+          const pRate =
+            type === 'dette'
+              ? 5.5
+              : rawRate >= 1 && rawRate <= 15
+              ? Math.round(rawRate * 10) / 10
+              : targetInterestRate;
+          const exactM = calculateMonthlyPayment(pAmount, pRate, pTerm);
+          const rawMens = Number(pickFlexTag(['MENSUALITE', 'MENSUALITÉ']).replace(/[^\d]/g, ''));
+          const pMens = rawMens >= exactM ? rawMens : Math.max(exactM, Math.ceil(exactM / 10) * 10);
+          const conseilClean = (pickFlexTag(['CONSEIL']) || replyStr)
+            .replace(/je reste à votre disposition[^.!?\n]*[.!?]?/gi, '')
+            .trim();
+
+          applyDraftFields({
+            coachMessage: conseilClean,
+            proposedTerms: {
+              amountRequested: pAmount,
+              termMonths: pTerm,
+              targetInterestRate: type === 'dette' ? undefined : pRate,
+              maxMonthlyPayment: pMens,
+            },
+          });
         }
       } catch {
         window.clearTimeout(fallbackTimeout);
@@ -530,6 +597,21 @@ Besoin : ${trimmed}`
     } finally {
       setIsSolvaDrafting(false);
     }
+  };
+
+  const handleApplySolvaProposal = () => {
+    if (!solvaProposal) return;
+    setAmountRequested(solvaProposal.amountRequested);
+    setTermMonths(solvaProposal.termMonths);
+    if (type === 'dette') {
+      if (originalDebtAmount < solvaProposal.amountRequested) {
+        setOriginalDebtAmount(Math.round(solvaProposal.amountRequested / 0.8));
+      }
+    } else if (typeof solvaProposal.targetInterestRate === 'number') {
+      setTargetInterestRate(solvaProposal.targetInterestRate);
+    }
+    setMaxMonthlyPayment(solvaProposal.maxMonthlyPayment);
+    setSolvaProposal((prev) => (prev ? { ...prev, applied: true } : null));
   };
 
   const applyPreset = (presetKey: 'credit' | 'tresorerie' | 'contentieux' | 'solidaire') => {
@@ -632,93 +714,98 @@ Besoin : ${trimmed}`
     }
 
     setIsPublishing(true);
-    setTimeout(() => {
-      const nextExp = loyalty.active ? loyalty.exp + EXP_PER_DOSSIER : 0;
-      const projectedUser: User | undefined = currentUser
-        ? {
-            ...currentUser,
-            loyaltyExp: nextExp,
-          }
-        : undefined;
-      const updatedLoyalty = getLoyaltyStatus(projectedUser);
+    setPaymentPhase('verifying');
+    window.setTimeout(() => {
+      setPaymentPhase('approved');
+      window.setTimeout(() => {
+        const nextExp = loyalty.active ? loyalty.exp + EXP_PER_DOSSIER : 0;
+        const projectedUser: User | undefined = currentUser
+          ? {
+              ...currentUser,
+              loyaltyExp: nextExp,
+            }
+          : undefined;
+        const updatedLoyalty = getLoyaltyStatus(projectedUser);
 
-      const newDossier: Dossier = {
-        id: `dos-${Date.now()}`,
-        title:
-          title ||
-          (type === 'dette'
-            ? 'Apurement de dette et rachat amiable'
-            : type === 'investissement'
-            ? "Demande d'investissement & développement"
-            : 'Dossier spécifique / Autre sujet'),
-        type,
-        category,
-        amountRequested: Number(amountRequested),
-        originalDebtAmount: type === 'dette' ? Number(originalDebtAmount) : undefined,
-        targetInterestRate: type === 'investissement' ? Number(targetInterestRate) : 5.5,
-        targetDiscount: type === 'dette' ? Number(targetDiscount) : undefined,
-        maxMonthlyPayment: Number(maxMonthlyPayment),
-        termMonths: Number(termMonths),
-        description:
-          description ||
-          `Dossier classé dans l'onglet ${
-            type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'
-          } pour négociation directe avec des investisseurs.`,
-        contextStory:
-          contextStory ||
-          'Exposé complet de la situation financière, du besoin de fonds et des engagements de remboursement.',
-        guaranteeType,
-        applicant: {
-          name: applicantName || currentUser?.name || 'Demandeur',
-          firstName:
-            currentUser?.firstName ||
-            (applicantName || currentUser?.name || 'Demandeur').split(' ')[0],
-          lastName:
-            currentUser?.lastName ||
-            (applicantName || currentUser?.name || '').split(' ').slice(1).join(' ') ||
-            undefined,
-          email: applicantEmail.trim() || currentUser?.email || '',
-          phone: applicantPhone.trim() || currentUser?.phone || '',
-          pseudonym: applicantPseudonym || `${(applicantName || 'Membre').split(' ')[0]}_Solv`,
-          city: city || currentUser?.city || 'France',
-          postalCode: postalCode || currentUser?.postalCode,
-          profession,
-          monthlyIncome: Number(monthlyIncome),
-          existingCharges: Number(existingCharges),
-          verifiedIdentity: uploadedFiles.length > 0,
-          verifiedIncome: uploadedFiles.length > 0,
-          riskGrade: computedRiskGrade,
-          loyaltyTier: updatedLoyalty.active ? updatedLoyalty.tier : undefined,
-          loyaltyTitle:
-            updatedLoyalty.active && updatedLoyalty.badgeTitle
-              ? updatedLoyalty.badgeTitle
-              : undefined,
-        },
-        documents: uploadedFiles.map((file, i) => ({
-          id: `doc-new-${Date.now()}-${i}`,
-          name: file.name,
-          category: 'justificatif_dette',
-          size: file.sizeLabel,
-          verified: true,
-          date: new Date().toLocaleDateString('fr-FR'),
-        })),
-        status: 'open',
-        createdAt: new Date().toLocaleDateString('fr-FR'),
-        offersCount: 0,
-        urgency: 'prioritaire',
-        publicationPaidAmount: loyalty.publicationPrice,
-        isDiamondPriority: updatedLoyalty.isDiamond || loyalty.isDiamond,
-      };
+        const newDossier: Dossier = {
+          id: `dos-${Date.now()}`,
+          title:
+            title ||
+            (type === 'dette'
+              ? 'Apurement de dette et rachat amiable'
+              : type === 'investissement'
+              ? "Demande d'investissement & développement"
+              : 'Dossier spécifique / Autre sujet'),
+          type,
+          category,
+          amountRequested: Number(amountRequested),
+          originalDebtAmount: type === 'dette' ? Number(originalDebtAmount) : undefined,
+          targetInterestRate: type === 'investissement' ? Number(targetInterestRate) : 5.5,
+          targetDiscount: type === 'dette' ? Number(targetDiscount) : undefined,
+          maxMonthlyPayment: Number(maxMonthlyPayment),
+          termMonths: Number(termMonths),
+          description:
+            description ||
+            `Dossier classé dans l'onglet ${
+              type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'
+            } pour négociation directe avec des investisseurs.`,
+          contextStory:
+            contextStory ||
+            'Exposé complet de la situation financière, du besoin de fonds et des engagements de remboursement.',
+          guaranteeType,
+          applicant: {
+            name: applicantName || currentUser?.name || 'Demandeur',
+            firstName:
+              currentUser?.firstName ||
+              (applicantName || currentUser?.name || 'Demandeur').split(' ')[0],
+            lastName:
+              currentUser?.lastName ||
+              (applicantName || currentUser?.name || '').split(' ').slice(1).join(' ') ||
+              undefined,
+            email: applicantEmail.trim() || currentUser?.email || '',
+            phone: applicantPhone.trim() || currentUser?.phone || '',
+            pseudonym: applicantPseudonym || `${(applicantName || 'Membre').split(' ')[0]}_Solv`,
+            city: city || currentUser?.city || 'France',
+            postalCode: postalCode || currentUser?.postalCode,
+            profession,
+            monthlyIncome: Number(monthlyIncome),
+            existingCharges: Number(existingCharges),
+            verifiedIdentity: uploadedFiles.length > 0,
+            verifiedIncome: uploadedFiles.length > 0,
+            riskGrade: computedRiskGrade,
+            loyaltyTier: updatedLoyalty.active ? updatedLoyalty.tier : undefined,
+            loyaltyTitle:
+              updatedLoyalty.active && updatedLoyalty.badgeTitle
+                ? updatedLoyalty.badgeTitle
+                : undefined,
+          },
+          documents: uploadedFiles.map((file, i) => ({
+            id: `doc-new-${Date.now()}-${i}`,
+            name: file.name,
+            category: 'justificatif_dette',
+            size: file.sizeLabel,
+            verified: true,
+            date: new Date().toLocaleDateString('fr-FR'),
+          })),
+          status: 'open',
+          createdAt: new Date().toLocaleDateString('fr-FR'),
+          offersCount: 0,
+          urgency: 'prioritaire',
+          publicationPaidAmount: loyalty.publicationPrice,
+          isDiamondPriority: updatedLoyalty.isDiamond || loyalty.isDiamond,
+        };
 
-      setIsPublishing(false);
-      onSubmitDossier(newDossier, loyalty.publicationPrice);
-      onClose();
-      setStep(1);
-      setUploadedFiles([]);
-      setCardNumber('');
-      setExpiry('');
-      setCvc('');
-    }, 850);
+        setPaymentPhase(null);
+        setIsPublishing(false);
+        onSubmitDossier(newDossier, loyalty.publicationPrice);
+        onClose();
+        setStep(1);
+        setUploadedFiles([]);
+        setCardNumber('');
+        setExpiry('');
+        setCvc('');
+      }, 850);
+    }, 950);
   };
 
   const solvaPromptMeta =
@@ -734,10 +821,10 @@ Besoin : ${trimmed}`
       : step === 2
       ? {
           question:
-            'Étape chiffrée : SolvaSolution n’écrit pas à votre place sur vos montants, mais répond à vos questions ici.',
+            'Indiquez votre besoin ou montant : SolvaSolution résume votre demande et vous propose les meilleurs délais à valider en 1 clic.',
           placeholder:
-            'Ex : Quelle durée choisir pour garder une mensualité réaliste sur 10 000 € ?',
-          buttonLabel: 'Poser la question',
+            'Ex : Il me faut 13 000 € pour une école, quel délai choisir pour une mensualité raisonnable ?',
+          buttonLabel: 'Proposer les conditions',
           writesText: false,
         }
       : step === 3
@@ -822,7 +909,7 @@ Besoin : ${trimmed}`
                   <span className="text-[10px] font-semibold text-emerald-300">
                     {solvaPromptMeta.writesText
                       ? 'Rédaction assistée (champs texte)'
-                      : 'Conseil chiffré (lecture seule)'}
+                      : 'Proposition chiffrée (validation en 1 clic)'}
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-300 font-medium">
@@ -876,9 +963,50 @@ Besoin : ${trimmed}`
               )}
 
               {solvaReply && (
-                <div className="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/35 text-[11px] text-emerald-100 leading-relaxed flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <span className="whitespace-pre-line">{solvaReply}</span>
+                <div className="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/35 text-[11px] text-emerald-100 leading-relaxed space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="whitespace-pre-line">{solvaReply}</span>
+                  </div>
+
+                  {step === 2 && solvaProposal && (
+                    <div className="pt-2 border-t border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-emerald-200 tabular-nums">
+                        <span>
+                          Montant : <strong className="text-white">{formatEuro(solvaProposal.amountRequested)}</strong>
+                        </span>
+                        <span>
+                          Durée : <strong className="text-white">{solvaProposal.termMonths} mois</strong>
+                        </span>
+                        {type !== 'dette' && typeof solvaProposal.targetInterestRate === 'number' && (
+                          <span>
+                            Taux : <strong className="text-white">{solvaProposal.targetInterestRate} %</strong>
+                          </span>
+                        )}
+                        <span>
+                          Mensualité : <strong className="text-white">{formatEuro(solvaProposal.maxMonthlyPayment)}/mois</strong>
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleApplySolvaProposal}
+                        disabled={solvaProposal.applied}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                          solvaProposal.applied
+                            ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 cursor-default'
+                            : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>
+                          {solvaProposal.applied
+                            ? 'Données appliquées automatiquement'
+                            : 'OK, ça me va — Appliquer'}
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1288,7 +1416,10 @@ Besoin : ${trimmed}`
                   <input
                     type="number"
                     value={monthlyIncome}
-                    onChange={(e) => setMonthlyIncome(Number(e.target.value))}
+                    onChange={(e) => {
+                      setMonthlyIncome(Number(e.target.value));
+                      setHasEnteredFinances(true);
+                    }}
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
                   />
                 </div>
@@ -1300,7 +1431,10 @@ Besoin : ${trimmed}`
                   <input
                     type="number"
                     value={existingCharges}
-                    onChange={(e) => setExistingCharges(Number(e.target.value))}
+                    onChange={(e) => {
+                      setExistingCharges(Number(e.target.value));
+                      setHasEnteredFinances(true);
+                    }}
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
                   />
                 </div>
@@ -1683,6 +1817,15 @@ Besoin : ${trimmed}`
           </div>
         </form>
       </div>
+      <FuturisticPaymentOverlay
+        phase={paymentPhase}
+        amountLabel={
+          loyalty.isFreePublicationNow
+            ? '0 € (Offert)'
+            : formatEuro(loyalty.publicationPrice)
+        }
+        subtitle="Publication officielle et mise en ligne du dossier sur SolvaPact"
+      />
     </div>
   );
 };

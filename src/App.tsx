@@ -20,6 +20,7 @@ import {
   EXP_PER_DOSSIER,
   LOYALTY_ACTIVATION_PRICE,
   applyOwnerGoldStatus,
+  canViewDailyReport,
   formatEuro,
   getLoyaltyStatus,
   isOwnerGoldEmail,
@@ -81,7 +82,22 @@ export default function App() {
     const saved = localStorage.getItem('solvapact_user');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as User;
+        let parsed = JSON.parse(saved) as User;
+        if (
+          isOwnerGoldEmail(parsed.email) &&
+          !localStorage.getItem('solvapact_test_pause_diamond_v1')
+        ) {
+          parsed = {
+            ...parsed,
+            loyaltyActive: false,
+            loyaltyExp: 0,
+            diamondPublicationsCount: 0,
+            loyaltyActivatedAt: undefined,
+          };
+          localStorage.setItem('solvapact_user', JSON.stringify(parsed));
+          localStorage.setItem('solvapact_test_pause_diamond_v1', 'true');
+          syncUserToAccountsStore(parsed);
+        }
         return applyOwnerGoldStatus(parsed);
       } catch (e) {
         console.error('Error loading user from localStorage', e);
@@ -232,6 +248,7 @@ export default function App() {
   };
 
   const isOwner = isOwnerGoldEmail(currentUser?.email);
+  const canSeeDailyReport = canViewDailyReport(currentUser);
 
   const canMarkDossierAccepted = (dossier: Dossier): boolean => {
     if (!currentUser) return false;
@@ -409,7 +426,7 @@ export default function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         onOpenLoyalty={() => setIsLoyaltyModalOpen(true)}
-        onOpenDailyReport={isOwner ? () => setIsDailyReportOpen(true) : undefined}
+        onOpenDailyReport={canSeeDailyReport ? () => setIsDailyReportOpen(true) : undefined}
       />
 
       <main className="flex-1">
@@ -824,7 +841,7 @@ export default function App() {
         onSkip={() => setSurveyDossier(null)}
       />
 
-      {isOwner && (
+      {canSeeDailyReport && (
         <DailyReportModal
           isOpen={isDailyReportOpen}
           onClose={() => setIsDailyReportOpen(false)}

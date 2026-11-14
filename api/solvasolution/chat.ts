@@ -196,7 +196,7 @@ export default async function handler(req: any, res: any) {
               ...thinkingConfig,
             },
           }),
-          9500,
+          8500,
           candidate.model
         );
         cachedWorkingChatModel = candidate.model;

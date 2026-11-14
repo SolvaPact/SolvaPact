@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DailyReportSummary, User } from '../types';
-import { formatEuro, isOwnerGoldEmail } from '../utils/finance';
+import { formatEuro, canViewDailyReport } from '../utils/finance';
 import {
   X,
   BarChart3,
@@ -49,16 +49,16 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const isOwner = isOwnerGoldEmail(currentUser?.email);
+  const isOwner = canViewDailyReport(currentUser);
 
   const fetchReport = async (dateKey: string) => {
-    if (!currentUser?.email || !isOwner) return;
+    if (!currentUser?.name || !isOwner) return;
     setLoading(true);
     try {
       const res = await fetch(
         `/api/analytics/daily?date=${encodeURIComponent(dateKey)}&ownerEmail=${encodeURIComponent(
-          currentUser.email
-        )}`
+          currentUser.email || ''
+        )}&ownerName=${encodeURIComponent(currentUser.name)}`
       );
       if (res.ok) {
         const data = (await res.json()) as {
@@ -89,14 +89,15 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
   if (!isOpen || !isOwner) return null;
 
   const handleSendReport = async () => {
-    if (!currentUser?.email) return;
+    if (!currentUser?.name || !isOwner) return;
     setSending(true);
     try {
       const res = await fetch('/api/analytics/send-daily-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ownerEmail: currentUser.email,
+          ownerEmail: currentUser.email || '',
+          ownerName: currentUser.name,
           date: selectedDate,
         }),
       });
