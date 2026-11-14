@@ -123,25 +123,67 @@ export default async function handler(req: any, res: any) {
       },
     ];
 
-    const callGemini = async () =>
-      ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents,
-        config: {
-          systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        },
-      });
+    const modelAttempts: Array<{ model: string; useThinkingLevel: boolean }> = [
+      { model: 'gemini-4-hydrogen', useThinkingLevel: true },
+      { model: 'gemini-3.1-flash-lite', useThinkingLevel: true },
+      { model: 'gemini-2.5-flash', useThinkingLevel: false },
+    ];
 
     let response;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    let lastError: any = null;
+
+    for (const candidate of modelAttempts) {
       try {
-        response = await callGemini();
+        response = await ai.models.generateContent({
+          model: candidate.model,
+          contents,
+          config: {
+            systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
+            ...(candidate.useThinkingLevel
+              ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+              : {}),
+          },
+        });
+        lastError = null;
         break;
-      } catch (err) {
-        if (attempt === 2) throw err;
-        await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err || '').toLowerCase();
+        const status = err?.status || err?.code;
+        const isNotFound =
+          status === 404 ||
+          msg.includes('404') ||
+          msg.includes('not_found') ||
+          msg.includes('not found') ||
+          msg.includes('not supported');
+        if (isNotFound) {
+          console.warn(`Model ${candidate.model} unavailable on host, trying fallback...`);
+          continue;
+        }
+        // Retry once on transient 5xx/network errors
+        try {
+          await new Promise((r) => setTimeout(r, 600));
+          response = await ai.models.generateContent({
+            model: candidate.model,
+            contents,
+            config: {
+              systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
+              ...(candidate.useThinkingLevel
+                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+                : {}),
+            },
+          });
+          lastError = null;
+          break;
+        } catch (retryErr) {
+          lastError = retryErr;
+          break;
+        }
       }
+    }
+
+    if (lastError && !response) {
+      throw lastError;
     }
 
     const rawText = (response?.text || '').trim();
@@ -160,11 +202,12 @@ export default async function handler(req: any, res: any) {
       reply: cleanReply,
       suggestHumanSupport,
     });
-  } catch (error) {
-    console.error('Vercel SolvaSolution API error:', error);
+  } catch (error: any) {
+    const status = error?.status || error?.code || 'ERR';
+    const rawMsg = String(error?.message || error || '');
+    console.error('Vercel SolvaSolution API error:', status, rawMsg);
     return res.status(500).json({
-      error:
-        "SolvaSolution rencontre une difficulté momentanée. Vous pouvez transmettre votre question directement à notre équipe ci-contre.",
+      error: `SolvaSolution rencontre une difficulté momentanée (${status}). Vous pouvez réessayer ou transmettre votre question directement à notre équipe ci-contre.`,
       suggestHumanSupport: true,
     });
   }
