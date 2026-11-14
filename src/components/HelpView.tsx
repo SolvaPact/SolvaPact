@@ -166,7 +166,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
 
       for (let attempt = 0; attempt < 2; attempt++) {
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 22000);
+        const timeoutId = window.setTimeout(() => controller.abort(), 28000);
         try {
           response = await fetch('/api/solvasolution/chat', {
             method: 'POST',

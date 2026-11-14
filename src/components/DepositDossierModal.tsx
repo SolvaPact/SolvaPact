@@ -65,7 +65,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   // Form State - 3 main dossier types
   const [type, setType] = useState<DossierType>(defaultType);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Particulier & Pro');
+  const [category, setCategory] = useState('Particulier / Refinancement');
   const [amountRequested, setAmountRequested] = useState<number>(10000);
   const [originalDebtAmount, setOriginalDebtAmount] = useState<number>(13000);
   const [targetInterestRate, setTargetInterestRate] = useState<number>(6.0);
@@ -188,6 +188,98 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     e.target.value = '';
   };
 
+  const inferStep1TypeAndCategory = (promptText: string, currentTab: DossierType) => {
+    const lower = promptText.toLowerCase();
+    const investScore = [
+      'invest',
+      'construi',
+      'école',
+      'ecole',
+      'projet',
+      'créer',
+      'creer',
+      'création',
+      'creation',
+      'entreprise',
+      'société',
+      'societe',
+      'matériel',
+      'materiel',
+      'outillage',
+      'ouvrir',
+      'lancer',
+      'boutique',
+      'local',
+      'machine',
+      'formation',
+      'association',
+      'fonds de commerce',
+      'développement',
+      'developpement',
+      'bâtiment',
+      'batiment',
+      'travaux',
+    ].filter((k) => lower.includes(k)).length;
+
+    const debtScore = [
+      'dette',
+      'créanc',
+      'creanc',
+      'rachat de crédit',
+      'rachat crédit',
+      'rachat de credit',
+      'regroupement',
+      'découvert',
+      'decouvert',
+      'huissier',
+      'contentieux',
+      'impayé',
+      'impaye',
+      'apurer',
+      'solder',
+      'urssaf',
+      'décote',
+      'decote',
+    ].filter((k) => lower.includes(k)).length;
+
+    let detectedType: DossierType = currentTab;
+    if (investScore > debtScore && investScore > 0) detectedType = 'investissement';
+    else if (debtScore > investScore && debtScore > 0) detectedType = 'dette';
+    else if (lower.includes('solidaire') || lower.includes('litige')) detectedType = 'autre';
+
+    let detectedCat = 'Autre domaine';
+    if (
+      lower.includes('école') ||
+      lower.includes('ecole') ||
+      lower.includes('éduc') ||
+      lower.includes('educ') ||
+      lower.includes('formation') ||
+      lower.includes('crèche')
+    ) {
+      detectedCat = 'Éducation & Formation';
+    } else if (
+      lower.includes('constru') ||
+      lower.includes('immobilier') ||
+      lower.includes('bâtiment') ||
+      lower.includes('batiment') ||
+      lower.includes('local')
+    ) {
+      detectedCat = 'Immobilier & Construction';
+    } else if (lower.includes('artisan') || lower.includes('btp') || lower.includes('chantier') || lower.includes('outillage')) {
+      detectedCat = 'Artisanat & BTP';
+    } else if (lower.includes('boulanger') || lower.includes('restaur') || lower.includes('traiteur')) {
+      detectedCat = 'Commerce de bouche';
+    } else if (lower.includes('auto') || lower.includes('camion') || lower.includes('utilitaire') || lower.includes('transport')) {
+      detectedCat = 'Automobile & Logistique';
+    } else if (lower.includes('freelance') || lower.includes('libérale') || lower.includes('indépendant')) {
+      detectedCat = 'Profession libérale & Freelance';
+    } else if (lower.includes('crédit') || lower.includes('découvert') || lower.includes('particulier') || lower.includes('dette')) {
+      detectedCat = 'Particulier / Refinancement';
+    }
+
+    return { detectedType, detectedCat };
+  };
+
   const handleSolvaDraft = async () => {
     const trimmed = solvaInput.trim();
     if (!trimmed || isSolvaDrafting) return;
@@ -197,6 +289,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     setIsSolvaDrafting(true);
 
     const applyDraftFields = (fields: {
+      recommendedType?: DossierType;
+      recommendedCategory?: string;
       title?: string;
       description?: string;
       guaranteeType?: string;
@@ -204,8 +298,44 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       coachMessage?: string;
     }) => {
       if (step === 1) {
+        const fallbackClassification = inferStep1TypeAndCategory(trimmed, type);
+        const targetType = fields.recommendedType || fallbackClassification.detectedType;
+        const targetCategory = fields.recommendedCategory || fallbackClassification.detectedCat;
+        const previousType = type;
+
+        setType(targetType);
+        if (targetCategory) setCategory(targetCategory);
         if (fields.title?.trim()) setTitle(fields.title.trim());
-        if (fields.description?.trim()) setDescription(fields.description.trim());
+
+        const cleanDesc =
+          fields.description?.trim() ||
+          (targetType === 'investissement'
+            ? `Demande de financement participatif direct pour concrétiser ce projet (${trimmed.slice(0, 130)}). Remboursement mensuel encadré et conditions transparentes proposées directement à l'investisseur.`
+            : targetType === 'dette'
+            ? `Demande d'apurement amiable pour solder et restructurer une situation existante (${trimmed.slice(0, 130)}). Protocole sous seing privé avec échéancier mensuel réaliste.`
+            : `Demande d'accompagnement financier direct (${trimmed.slice(0, 130)}) avec engagement de remboursement clair et justificatifs fournis.`);
+        setDescription(cleanDesc);
+
+        const tabLabel =
+          targetType === 'investissement'
+            ? 'Onglet 2 : Investissement'
+            : targetType === 'dette'
+            ? 'Onglet 1 : Dette à régler'
+            : 'Onglet 3 : Autre sujet';
+
+        const redirectPrefix =
+          previousType !== targetType
+            ? `Votre projet relève plutôt de ${tabLabel} — j'ai basculé automatiquement votre dossier sur cet onglet et sélectionné le domaine « ${targetCategory} ». `
+            : '';
+
+        setSolvaReply(
+          `${redirectPrefix}${
+            fields.coachMessage?.trim() ||
+            'Titre et résumé d’accroche rédigés et insérés dans votre dossier.'
+          }`
+        );
+        setSolvaInput('');
+        return;
       } else if (step === 3) {
         if (fields.guaranteeType?.trim()) setGuaranteeType(fields.guaranteeType.trim());
       } else if (step === 4) {
@@ -244,7 +374,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       });
 
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 35000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 28000);
       let response: Response | null = null;
 
       try {
@@ -260,6 +390,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 
       const rawText = await response.text();
       let parsedData: {
+        recommendedType?: DossierType;
+        recommendedCategory?: string;
         title?: string;
         description?: string;
         guaranteeType?: string;
@@ -279,18 +411,22 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         return;
       }
 
-      // Automatic fallback via the proven /api/solvasolution/chat route if /draft is not yet deployed or returned 404/5xx
+      // Automatic fallback via /api/solvasolution/chat
       const fallbackController = new AbortController();
-      const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 35000);
+      const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 28000);
       try {
         const tagInstruction =
           step === 1
-            ? `Rédige pour mon dossier SolvaPact (type: ${type}, catégorie: ${category}) sans utiliser de #, * ni Markdown. Réponds exactement avec les balises [[TITRE]]...[[/TITRE]] et [[RESUME]]...[[/RESUME]]. Mon besoin : ${trimmed}`
+            ? `Rédige pour mon dossier SolvaPact sans aucun Markdown (#, *, _). Choisis le bon onglet (investissement si projet/construction/matériel/école, dette si dettes/crédits/découvert) et réponds exactement avec :
+[[ONGLET]]investissement ou dette ou autre[[/ONGLET]]
+[[TITRE]]titre clair de 6 à 14 mots[[/TITRE]]
+[[RESUME]]résumé d'accroche complet en 2 phrases rassurantes[[/RESUME]]
+Besoin : ${trimmed}`
             : step === 2
-            ? `Réponds brièvement en texte clair (sans #, * ni Markdown) à ma question sur mes montants/durée (${amountRequested} €, ${termMonths} mois) : ${trimmed}`
+            ? `Réponds clairement en texte naturel (sans #, * ni Markdown, en 3 à 5 phrases) à ma question précise sur mon financement (${amountRequested} € sur ${termMonths} mois) : ${trimmed}`
             : step === 3
-            ? `Formule en une phrase claire et rassurante (sans #, * ni Markdown) la garantie suivante pour mon dossier avec la balise [[GARANTIE]]...[[/GARANTIE]] : ${trimmed}`
-            : `Rédige l'exposé complet de mon dossier en 3 paragraphes clairs (sans #, * ni Markdown) avec la balise [[EXPOSE]]...[[/EXPOSE]]. Contexte: ${amountRequested} € sur ${termMonths} mois, revenus ${monthlyIncome} €/mois. Mon texte : ${trimmed}`;
+            ? `Formule en une phrase claire et rassurante (sans #, * ni Markdown) la garantie suivante pour mon dossier avec [[GARANTIE]]...[[/GARANTIE]] : ${trimmed}`
+            : `Rédige l'exposé complet de mon dossier en 3 paragraphes clairs (sans #, * ni Markdown) avec [[EXPOSE]]...[[/EXPOSE]]. Contexte: ${amountRequested} € sur ${termMonths} mois, revenus ${monthlyIncome} €/mois. Mon texte : ${trimmed}`;
 
         const chatRes = await fetch('/api/solvasolution/chat', {
           method: 'POST',
@@ -318,33 +454,63 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
           setSolvaError(
             parsedData?.error ||
               chatData.error ||
-              'SolvaSolution n’a pas pu rédiger pour cette étape pour le moment. Réessayez dans un instant.'
+              'SolvaSolution n’a pas pu répondre à cette demande pour le moment. Vous pouvez réessayer dans quelques secondes.'
           );
           return;
         }
 
         const replyStr = chatData.reply;
-        const pickTag = (tag: string) => {
-          const m = replyStr.match(new RegExp(`\\[\\[${tag}\\]\\]([\\s\\S]*?)\\[\\[\\/${tag}\\]\\]`, 'i'));
-          return m?.[1]?.trim() || '';
+        const pickFlexTag = (tags: string[]) => {
+          for (const tag of tags) {
+            const m = replyStr.match(new RegExp(`\\[\\[${tag}\\]\\]([\\s\\S]*?)\\[\\[\\/${tag}\\]\\]`, 'i'));
+            if (m?.[1]?.trim()) return m[1].trim();
+            const openM = replyStr.match(new RegExp(`\\[\\[${tag}\\]\\]([\\s\\S]*?)(?=\\[\\[|$)`, 'i'));
+            if (openM?.[1]?.trim()) return openM[1].trim();
+          }
+          return '';
         };
 
         if (step === 1) {
-          const t = pickTag('TITRE') || replyStr.split('\n')[0]?.trim().slice(0, 120) || '';
-          const r = pickTag('RESUME') || replyStr.split('\n').slice(1).join(' ').trim().slice(0, 350);
+          const { detectedType, detectedCat } = inferStep1TypeAndCategory(trimmed, type);
+          const rawOnglet = pickFlexTag(['ONGLET', 'TYPE']).toLowerCase();
+          const finalType: DossierType = rawOnglet.includes('invest')
+            ? 'investissement'
+            : rawOnglet.includes('dette')
+            ? 'dette'
+            : rawOnglet.includes('autre')
+            ? 'autre'
+            : detectedType;
+
+          const cleanedLines = replyStr
+            .replace(/\[\[\/?[A-ZÉÀÈÊÔÛÎ_]+\]\]/gi, '\n')
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean);
+
+          const t = pickFlexTag(['TITRE', 'INTITULE']) || cleanedLines[0]?.slice(0, 120) || '';
+          const r =
+            pickFlexTag(['RESUME', 'RÉSUMÉ', 'RESUMÉ', 'ACCROCHE']) ||
+            cleanedLines
+              .filter((l) => l !== t && !l.toLowerCase().startsWith('investissement') && !l.toLowerCase().startsWith('dette'))
+              .slice(0, 2)
+              .join(' ')
+              .slice(0, 360);
+
           applyDraftFields({
+            recommendedType: finalType,
+            recommendedCategory: detectedCat,
             title: t,
             description: r,
-            coachMessage: 'Titre et résumé rédigés et insérés dans votre dossier.',
+            coachMessage: 'Titre et résumé d’accroche rédigés et insérés dans votre dossier.',
           });
         } else if (step === 3) {
           applyDraftFields({
-            guaranteeType: pickTag('GARANTIE') || replyStr.slice(0, 240),
+            guaranteeType: pickFlexTag(['GARANTIE']) || replyStr.slice(0, 240),
             coachMessage: 'Garantie formulée et insérée dans votre dossier.',
           });
         } else if (step === 4) {
           applyDraftFields({
-            contextStory: pickTag('EXPOSE') || replyStr,
+            contextStory: pickFlexTag(['EXPOSE', 'EXPOSÉ']) || replyStr,
             coachMessage: 'Exposé détaillé rédigé et inséré dans votre dossier.',
           });
         } else {
@@ -354,12 +520,12 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
         window.clearTimeout(fallbackTimeout);
         setSolvaError(
           parsedData?.error ||
-            'Connexion interrompue avec SolvaSolution. Vérifiez votre connexion et réessayez.'
+            'Connexion interrompue avec SolvaSolution (le serveur a mis trop de temps à répondre). Cliquez à nouveau pour réessayer.'
         );
       }
     } catch {
       setSolvaError(
-        'Délai dépassé avec SolvaSolution. Réessayez votre demande ou remplissez le champ directement.'
+        'Délai dépassé avec SolvaSolution. Cliquez à nouveau pour réessayer ou remplissez directement le champ.'
       );
     } finally {
       setIsSolvaDrafting(false);
@@ -867,11 +1033,13 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
                 >
-                  <option value="Artisanat & BTP">Artisanat & BTP</option>
+                  <option value="Éducation & Formation">Éducation &amp; Formation</option>
+                  <option value="Immobilier & Construction">Immobilier &amp; Construction</option>
+                  <option value="Artisanat & BTP">Artisanat &amp; BTP</option>
                   <option value="Commerce de bouche">Commerce de bouche</option>
                   <option value="Particulier / Refinancement">Particulier / Refinancement</option>
-                  <option value="Profession libérale & Freelance">Profession libérale & Freelance</option>
-                  <option value="Automobile & Logistique">Automobile & Logistique</option>
+                  <option value="Profession libérale & Freelance">Profession libérale &amp; Freelance</option>
+                  <option value="Automobile & Logistique">Automobile &amp; Logistique</option>
                   <option value="Autre domaine">Autre domaine</option>
                 </select>
               </div>

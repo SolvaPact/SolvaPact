@@ -16,7 +16,7 @@ export function applyOwnerGoldStatus(user: User): User {
   return {
     ...user,
     loyaltyActive: true,
-    loyaltyExp: Math.max(user.loyaltyExp || 0, 300),
+    loyaltyExp: Math.max(user.loyaltyExp || 0, 500),
     loyaltyActivatedAt: user.loyaltyActivatedAt || new Date().toLocaleDateString('fr-FR'),
   };
 }
@@ -41,7 +41,7 @@ export interface LoyaltyStatus {
 export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
   const isOwner = isOwnerGoldEmail(user?.email);
   const active = Boolean(user?.loyaltyActive) || isOwner;
-  const exp = isOwner ? Math.max(user?.loyaltyExp || 0, 300) : user?.loyaltyExp || 0;
+  const exp = isOwner ? Math.max(user?.loyaltyExp || 0, 500) : user?.loyaltyExp || 0;
   const diamondCount = Math.max(0, user?.diamondPublicationsCount || 0);
 
   if (!active) {

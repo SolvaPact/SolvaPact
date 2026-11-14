@@ -73,6 +73,23 @@ C. Règles de sécurité & fiabilité des réponses :
 D. Transfert humain :
    - Si la demande concerne un litige, un signalement d'abus, un problème de paiement, une demande juridique spécifique ou dépasse tes capacités en toute sécurité, invite l'utilisateur à utiliser le formulaire de contact vers solvapact.vercel.app@gmail.com et termine exactement ta réponse par le marqueur [ESCALADE_HUMAIN].`;
 
+let cachedWorkingChatModel: string | null = null;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms (${label})`)), ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -129,7 +146,7 @@ export default async function handler(req: any, res: any) {
       : '';
 
     const contents = [
-      ...(Array.isArray(history) ? history.slice(-10) : [])
+      ...(Array.isArray(history) ? history.slice(-8) : [])
         .filter((turn) => turn && typeof turn.text === 'string' && turn.text.trim())
         .map((turn) => ({
           role: turn.role === 'model' ? 'model' : 'user',
@@ -141,62 +158,54 @@ export default async function handler(req: any, res: any) {
       },
     ];
 
-    const modelAttempts: Array<{ model: string; useThinkingLevel: boolean }> = [
-      { model: 'gemini-4-hydrogen', useThinkingLevel: true },
-      { model: 'gemini-3.1-flash-lite', useThinkingLevel: true },
-      { model: 'gemini-2.5-flash', useThinkingLevel: false },
+    const baseCandidates: Array<{
+      model: string;
+      thinkingMode: 'minimal' | 'budget0' | 'none';
+    }> = [
+      { model: 'gemini-4-hydrogen', thinkingMode: 'minimal' },
+      { model: 'gemini-3.1-flash-lite', thinkingMode: 'minimal' },
+      { model: 'gemini-2.5-flash', thinkingMode: 'budget0' },
     ];
+
+    const modelAttempts = cachedWorkingChatModel
+      ? [
+          ...baseCandidates.filter((c) => c.model === cachedWorkingChatModel),
+          ...baseCandidates.filter((c) => c.model !== cachedWorkingChatModel),
+        ]
+      : baseCandidates;
 
     let response;
     let lastError: any = null;
 
     for (const candidate of modelAttempts) {
       try {
-        response = await ai.models.generateContent({
-          model: candidate.model,
-          contents,
-          config: {
-            systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
-            ...(candidate.useThinkingLevel
-              ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-              : {}),
-          },
-        });
-        lastError = null;
-        break;
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || err || '').toLowerCase();
-        const status = err?.status || err?.code;
-        const isNotFound =
-          status === 404 ||
-          msg.includes('404') ||
-          msg.includes('not_found') ||
-          msg.includes('not found') ||
-          msg.includes('not supported');
-        if (isNotFound) {
-          console.warn(`Model ${candidate.model} unavailable on host, trying fallback...`);
-          continue;
-        }
-        // Retry once on transient 5xx/network errors
-        try {
-          await new Promise((r) => setTimeout(r, 600));
-          response = await ai.models.generateContent({
+        const thinkingConfig =
+          candidate.thinkingMode === 'minimal'
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } }
+            : candidate.thinkingMode === 'budget0'
+            ? { thinkingConfig: { thinkingBudget: 0 } }
+            : {};
+
+        response = await withTimeout(
+          ai.models.generateContent({
             model: candidate.model,
             contents,
             config: {
               systemInstruction: SOLVASOLUTION_SYSTEM_INSTRUCTION + contextNote,
-              ...(candidate.useThinkingLevel
-                ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-                : {}),
+              maxOutputTokens: 750,
+              ...thinkingConfig,
             },
-          });
-          lastError = null;
-          break;
-        } catch (retryErr) {
-          lastError = retryErr;
-          break;
-        }
+          }),
+          9500,
+          candidate.model
+        );
+        cachedWorkingChatModel = candidate.model;
+        lastError = null;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Vercel chat model ${candidate.model} failed, trying next:`, err?.message || err);
+        continue;
       }
     }
 
