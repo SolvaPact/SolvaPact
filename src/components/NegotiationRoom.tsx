@@ -385,7 +385,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
                 Accord validé — Virements à effectuer directement en dehors du site
               </h4>
               <p className="text-xs text-emerald-900 max-w-lg mx-auto leading-relaxed">
-                SolvaPact assure uniquement la mise en relation et la génération de votre protocole d'accord ({formatEuro(currentProposedAmount)} · 0 % de commission). Échangez vos coordonnées bancaires et procédez au virement directement entre vous en dehors de la plateforme.
+                SolvaPact assure uniquement la mise en relation et la génération de votre protocole d'accord ({formatEuro(currentProposedAmount)} · accord direct 100 % net). Échangez vos coordonnées bancaires ou Mobile Money et procédez au transfert directement entre vous en dehors de la plateforme.
               </p>
 
               <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
@@ -436,12 +436,12 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
             <button
               onClick={() =>
                 handleQuickPrompt(
-                  'Je propose un rachat comptant de la créance avec 20% de décote pour solder immédiatement.'
+                  "Je propose d'investir en contrepartie de parts sociales ou d'un partage de rentabilité à définir ensemble."
                 )
               }
               className="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md border border-slate-200 text-slate-700 whitespace-nowrap shrink-0 transition-colors cursor-pointer"
             >
-              Proposer décote comptant
+              Proposer entrée au capital
             </button>
             <button
               onClick={() =>
@@ -509,7 +509,7 @@ export const NegotiationRoom: React.FC<NegotiationRoomProps> = ({
             <form onSubmit={handleCounterSubmit} className="p-6 space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Montant financé ou racheté (€)
+                  Montant investi ou prêté (€)
                 </label>
                 <input
                   type="number"

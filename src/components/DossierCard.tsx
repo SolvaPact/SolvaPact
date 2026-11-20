@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Dossier } from '../types';
-import { formatEuro, formatPct, getLoyaltyNameColorClass } from '../utils/finance';
-import { ShieldCheck, MessageSquare, Clock, FileText, Trash2, CheckCircle2 } from 'lucide-react';
+import { formatAriaryApprox, formatEuro, formatPct, getLoyaltyNameColorClass } from '../utils/finance';
+import { ShieldCheck, MessageSquare, Clock, FileText, Trash2, CheckCircle2, Building2 } from 'lucide-react';
 
 interface DossierCardProps {
   dossier: Dossier;
@@ -21,21 +21,13 @@ export const DossierCard: React.FC<DossierCardProps> = ({
   onMarkAccepted,
 }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const isDebt = dossier.type === 'dette';
   const isInvest = dossier.type === 'investissement';
-  const isOther = dossier.type === 'autre';
 
-  const typeLabel = isDebt
-    ? 'Dette à régler'
-    : isInvest
-    ? 'Investissement'
-    : 'Autre sujet';
+  const typeLabel = isInvest ? 'Investissement' : 'Autre sujet';
 
-  const typeColor = isDebt
-    ? 'text-amber-800'
-    : isInvest
-    ? 'text-emerald-800'
-    : 'text-indigo-800';
+  const typeColor = isInvest ? 'text-emerald-700' : 'text-rose-700';
+
+  const bottomStripClass = isInvest ? 'bg-emerald-600' : 'bg-rose-500';
 
   const isDiamond = Boolean(
     dossier.isDiamondPriority || dossier.applicant.loyaltyTier === 'diamond'
@@ -43,32 +35,33 @@ export const DossierCard: React.FC<DossierCardProps> = ({
 
   return (
     <div
-      className={`bg-white rounded-xl border p-5 transition-all hover:shadow-sm flex flex-col justify-between ${
+      className={`bg-white rounded-2xl border transition-all hover:shadow-md flex flex-col justify-between overflow-hidden ${
         isDiamond
-          ? 'border-cyan-300 hover:border-cyan-400 ring-1 ring-cyan-100'
-          : 'border-slate-200 hover:border-slate-300'
+          ? 'border-cyan-300 hover:border-cyan-400 ring-1 ring-cyan-100 shadow-sm'
+          : 'border-slate-200 hover:border-orange-300 shadow-xs'
       }`}
     >
-      <div>
+      <div className="p-5 flex-1">
         {isDiamond && (
           <div className="text-[11px] font-extrabold text-cyan-700 tracking-wide mb-1.5 flex items-center gap-1.5">
             <span aria-hidden="true">✦</span>
             <span>Membre Prestigieux Officiel · Mise en avant prioritaire</span>
           </div>
         )}
+
         {/* Unboxed Metadata Header */}
-        <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5">
-          <div className="flex items-center gap-1.5 font-medium">
-            <span className={`font-bold ${typeColor}`}>
+        <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5 gap-2">
+          <div className="flex items-center gap-1.5 font-medium min-w-0 truncate">
+            <span className={`font-bold shrink-0 ${typeColor}`}>
               [{typeLabel}]
             </span>
             <span aria-hidden="true">·</span>
-            <span>{dossier.category}</span>
+            <span className="truncate">{dossier.category}</span>
             <span aria-hidden="true">·</span>
-            <span>{dossier.applicant.city}</span>
+            <span className="truncate font-semibold text-slate-700">{dossier.applicant.city}</span>
           </div>
 
-          <div className="flex items-center gap-2 text-slate-400">
+          <div className="flex items-center gap-2 text-slate-400 shrink-0">
             <div className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               <span>{dossier.createdAt}</span>
@@ -111,7 +104,7 @@ export const DossierCard: React.FC<DossierCardProps> = ({
         {/* Title */}
         <h3
           onClick={() => onSelect(dossier)}
-          className="text-base font-bold text-slate-900 leading-snug hover:text-slate-700 cursor-pointer line-clamp-2"
+          className="text-base font-extrabold text-slate-900 leading-snug hover:text-orange-600 cursor-pointer line-clamp-2 transition-colors"
         >
           {dossier.title}
         </h3>
@@ -132,23 +125,19 @@ export const DossierCard: React.FC<DossierCardProps> = ({
             <div className="grid grid-cols-3 gap-2 py-3.5 my-3.5 border-y border-slate-100 text-left">
               <div>
                 <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
-                  {isDebt ? 'Rachat visé' : 'Montant demandé'}
+                  Montant
                 </span>
-                <span className="text-base font-bold text-slate-900 tabular-nums">
+                <span className="text-base font-extrabold text-slate-900 tabular-nums block">
                   {formatEuro(dossier.amountRequested)}
                 </span>
-                {isDebt && dossier.originalDebtAmount && (
-                  <span className="text-[11px] text-slate-400 line-through block tabular-nums">
-                    {formatEuro(dossier.originalDebtAmount)}
-                  </span>
-                )}
+                <span className="text-[10px] text-orange-700 font-medium tabular-nums block">
+                  {formatAriaryApprox(dossier.amountRequested)}
+                </span>
               </div>
 
               <div>
                 <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
-                  {isDebt
-                    ? 'Décote / Taux'
-                    : isParts
+                  {isParts
                     ? 'Parts cédées'
                     : isRoyalty
                     ? 'Partage revenus'
@@ -156,10 +145,8 @@ export const DossierCard: React.FC<DossierCardProps> = ({
                     ? 'Taux + Parts'
                     : 'Taux proposé'}
                 </span>
-                <span className="text-base font-bold text-slate-900 tabular-nums">
-                  {isDebt && dossier.targetDiscount
-                    ? `-${dossier.targetDiscount}% décote`
-                    : isNoMonthly
+                <span className="text-base font-extrabold text-slate-900 tabular-nums">
+                  {isNoMonthly
                     ? `${dossier.equityPercentage || 15} %`
                     : isHybrid
                     ? `${dossier.targetInterestRate ? formatPct(dossier.targetInterestRate) : 'Mixte'} + ${dossier.equityPercentage || 10}%`
@@ -176,7 +163,7 @@ export const DossierCard: React.FC<DossierCardProps> = ({
                 <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
                   {isNoMonthly ? 'Contrepartie' : 'Mensualité max'}
                 </span>
-                <span className="text-base font-bold text-slate-900 tabular-nums">
+                <span className="text-base font-extrabold text-slate-900 tabular-nums">
                   {isNoMonthly ? '0 € / mois' : formatEuro(dossier.maxMonthlyPayment)}
                 </span>
                 <span className="text-[11px] text-slate-500 block">
@@ -192,7 +179,7 @@ export const DossierCard: React.FC<DossierCardProps> = ({
         })()}
 
         {/* Guarantees and Verification Row */}
-        <div className="space-y-1.5 text-xs text-slate-600 mb-4">
+        <div className="space-y-1.5 text-xs text-slate-600 mb-2">
           <div className="flex items-start gap-1.5">
             <span className="text-slate-400 font-medium shrink-0">Garantie :</span>
             <span className="text-slate-700 truncate">{dossier.guaranteeType}</span>
@@ -214,30 +201,31 @@ export const DossierCard: React.FC<DossierCardProps> = ({
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               Score {dossier.applicant.riskGrade}
             </span>
-            <span aria-hidden="true">·</span>
-            <span className="flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5 text-slate-400" />
-              {dossier.documents.length} justificatif{dossier.documents.length > 1 ? 's' : ''}
-            </span>
-            {(dossier.status === 'funded' || dossier.status === 'agreement_reached') && (
+            {dossier.verifiedCompany && (
               <>
                 <span aria-hidden="true">·</span>
-                <span className="font-bold text-emerald-700">
-                  {dossier.status === 'agreement_reached' ? 'Accepté' : 'Financé'}
+                <span className="flex items-center gap-1 font-semibold text-emerald-700">
+                  <Building2 className="w-3.5 h-3.5" />
+                  Société vérifiée
                 </span>
               </>
             )}
+            <span aria-hidden="true">·</span>
+            <span className="flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              {dossier.documents.length} pièce{dossier.documents.length > 1 ? 's' : ''}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Action Footer */}
-      <div className="space-y-2 pt-2 border-t border-slate-100">
+      <div className="px-5 pb-4 pt-2 border-t border-slate-100 space-y-2">
         {canMarkAccepted && onMarkAccepted && dossier.status === 'open' && (
           <button
             type="button"
             onClick={() => onMarkAccepted(dossier)}
-            className="w-full px-3 py-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            className="w-full px-3 py-1.5 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Marquer ce dossier comme accepté</span>
@@ -247,19 +235,33 @@ export const DossierCard: React.FC<DossierCardProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onSelect(dossier)}
-            className="flex-1 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors text-center cursor-pointer"
+            className="flex-1 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center cursor-pointer"
           >
-            Consulter le dossier
+            + Voir la page
           </button>
 
           <button
             onClick={() => onStartNegotiation(dossier)}
-            className="flex-1 px-3 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+            className="flex-1 px-3 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Négocier</span>
           </button>
         </div>
+      </div>
+
+      {/* Signature Malagasy Colored Bottom Status Strip */}
+      <div className={`${bottomStripClass} px-5 py-2 text-white text-[11px] font-bold flex items-center justify-between`}>
+        <span>
+          {dossier.status === 'agreement_reached'
+            ? 'Accord conclu entre membres'
+            : dossier.status === 'in_negotiation'
+            ? `En négociation (${dossier.offersCount || 1})`
+            : isInvest
+            ? 'Opportunité ouverte · Accord direct'
+            : 'Dossier ouvert · Accord direct'}
+        </span>
+        <span className="opacity-90">{dossier.applicant.city}</span>
       </div>
     </div>
   );

@@ -80,7 +80,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
     };
   };
 
-  const handlePayLoyalty = (e: React.FormEvent) => {
+  const handlePayLoyalty = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -95,15 +95,46 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
 
     setIsProcessing(true);
     setPaymentPhase('verifying');
-    window.setTimeout(() => {
-      setPaymentPhase('approved');
+
+    try {
+      const res = await fetch('/api/payments/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'loyalty',
+          userEmail: currentUser?.email,
+        }),
+      });
+      const checkoutData = (await res.json()) as {
+        mode?: string;
+        checkoutUrl?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(checkoutData.error || 'Paiement refusé par le serveur.');
+      }
+      if (checkoutData.mode === 'stripe' && checkoutData.checkoutUrl) {
+        sessionStorage.setItem('solvapact_pending_loyalty_stripe', 'true');
+        window.location.href = checkoutData.checkoutUrl;
+        return;
+      }
+
       window.setTimeout(() => {
-        setPaymentPhase(null);
-        setIsProcessing(false);
-        setJustActivated(true);
-        onActivateLoyalty();
-      }, 850);
-    }, 950);
+        setPaymentPhase('approved');
+        window.setTimeout(() => {
+          setPaymentPhase(null);
+          setIsProcessing(false);
+          setJustActivated(true);
+          onActivateLoyalty();
+        }, 850);
+      }, 650);
+    } catch (err) {
+      setPaymentPhase(null);
+      setIsProcessing(false);
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Erreur lors de la validation du paiement.'
+      );
+    }
   };
 
   return (

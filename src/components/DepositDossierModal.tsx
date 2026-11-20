@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Dossier, DossierType, InvestmentReturnMode, User } from '../types';
+import {
+  AttachmentUploadPayload,
+  Dossier,
+  DossierType,
+  InvestmentReturnMode,
+  User,
+  VerifiedCompanyInfo,
+} from '../types';
 import {
   BASE_PUBLICATION_PRICE,
   EXP_PER_DOSSIER,
   LOYALTY_ACTIVATION_PRICE,
   calculateMonthlyPayment,
   formatEuro,
+  formatAriaryApprox,
   calculateEffortRate,
   computeRiskGrade,
   getLoyaltyStatus,
@@ -27,6 +35,8 @@ import {
   Send,
   Sparkles,
   CheckCircle2,
+  Building2,
+  Search,
 } from 'lucide-react';
 import solvaBackdrop from '../assets/images/solvasolution_ai_backdrop_1794656956781.jpg';
 import { FuturisticPaymentOverlay } from './FuturisticPaymentOverlay';
@@ -34,7 +44,12 @@ import { FuturisticPaymentOverlay } from './FuturisticPaymentOverlay';
 interface DepositDossierModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitDossier: (dossier: Dossier, paidAmount: number) => void;
+  onSubmitDossier: (
+    dossier: Dossier,
+    paidAmount: number,
+    attachments?: AttachmentUploadPayload[],
+    privateContact?: { fullName: string; email: string; phone?: string }
+  ) => void;
   currentUser?: User | null;
   defaultType?: DossierType;
   initialAmount?: number;
@@ -44,8 +59,12 @@ interface DepositDossierModalProps {
 }
 
 interface AttachedFile {
+  id: string;
   name: string;
+  mimeType: string;
   sizeLabel: string;
+  dataUrl?: string;
+  base64?: string;
 }
 
 export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
@@ -53,7 +72,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   onClose,
   onSubmitDossier,
   currentUser,
-  defaultType = 'dette',
+  defaultType = 'investissement',
   initialAmount,
   initialTerm,
   onOpenLoyalty,
@@ -63,19 +82,17 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Form State - 3 main dossier types
+  // Form State - 2 main dossier types (investissement | autre)
   const [type, setType] = useState<DossierType>(defaultType);
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Particulier / Refinancement');
+  const [category, setCategory] = useState('Éducation & Formation');
   const [amountRequested, setAmountRequested] = useState<number>(10000);
-  const [originalDebtAmount, setOriginalDebtAmount] = useState<number>(13000);
   const [targetInterestRate, setTargetInterestRate] = useState<number>(6.0);
-  const [targetDiscount, setTargetDiscount] = useState<number>(20);
   const [termMonths, setTermMonths] = useState<number>(36);
   const [maxMonthlyPayment, setMaxMonthlyPayment] = useState<number>(320);
   const [description, setDescription] = useState('');
   const [contextStory, setContextStory] = useState('');
-  const [guaranteeType, setGuaranteeType] = useState('Caution solidaire ou retenue sur salaire');
+  const [guaranteeType, setGuaranteeType] = useState('Caution solidaire ou pacte d’associés');
 
   // Investment return structure & Detailed project fields
   const [investmentReturnMode, setInvestmentReturnMode] =
@@ -105,6 +122,23 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
 
   // Applicant finances confirmation flag (prevents AI from quoting unentered defaults)
   const [hasEnteredFinances, setHasEnteredFinances] = useState(false);
+
+  // Company Verification (NIF/STAT Madagascar or INSEE France)
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [companyCountry, setCompanyCountry] = useState<'MG' | 'FR'>('MG');
+  const [isVerifyingCompany, setIsVerifyingCompany] = useState(false);
+  const [companySearchResults, setCompanySearchResults] = useState<
+    Array<{
+      registryType: 'INSEE_FR' | 'NIF_STAT_MG';
+      identifier: string;
+      legalName: string;
+      legalForm?: string;
+      city?: string;
+      activity?: string;
+    }>
+  >([]);
+  const [verifiedCompany, setVerifiedCompany] = useState<VerifiedCompanyInfo | undefined>(undefined);
+  const [companyVerifyError, setCompanyVerifyError] = useState<string | null>(null);
 
   // Documents (real user attachments)
   const [uploadedFiles, setUploadedFiles] = useState<AttachedFile[]>([]);
@@ -187,37 +221,61 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const readFilePayload = (file: File): Promise<AttachedFile> =>
+    new Promise((resolve) => {
+      const id = `doc-new-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const base: AttachedFile = {
+        id,
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeLabel: formatFileSize(file.size),
+      };
+      // Read dataUrl for <= 3.5 MB files (Firestore saves <= 520 KB attachments; AI reads PDFs <= 3.5 MB)
+      if (file.size <= 3.5 * 1024 * 1024) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          const commaIdx = result.indexOf(',');
+          const rawBase64 = commaIdx > -1 ? result.slice(commaIdx + 1) : '';
+          resolve({
+            ...base,
+            base64: rawBase64 || undefined,
+            dataUrl: result && result.length <= 720000 ? result : undefined,
+          });
+        };
+        reader.onerror = () => resolve(base);
+        reader.readAsDataURL(file);
+      } else {
+        resolve(base);
+      }
+    });
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const nextFiles: AttachedFile[] = Array.from(files).map((f) => ({
-      name: f.name,
-      sizeLabel: formatFileSize(f.size),
-    }));
+    const nextFiles = await Promise.all(Array.from(files).map(readFilePayload));
     setUploadedFiles((prev) => [...prev, ...nextFiles]);
     e.target.value = '';
   };
 
-  const handlePdfImportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setPdfUploadError(null);
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const validPdfs: AttachedFile[] = [];
+    const pdfCandidates: File[] = [];
     let rejected = false;
 
     Array.from(files).forEach((f) => {
       const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
       if (isPdf) {
-        validPdfs.push({
-          name: f.name,
-          sizeLabel: formatFileSize(f.size),
-        });
+        pdfCandidates.push(f);
       } else {
         rejected = true;
       }
     });
 
-    if (validPdfs.length > 0) {
+    if (pdfCandidates.length > 0) {
+      const validPdfs = await Promise.all(pdfCandidates.map(readFilePayload));
       setUploadedFiles((prev) => [...prev, ...validPdfs]);
     }
     if (rejected) {
@@ -226,8 +284,52 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
     e.target.value = '';
   };
 
+  const handleVerifyCompany = async () => {
+    const q = companyQuery.trim();
+    if (q.length < 3) {
+      setCompanyVerifyError('Saisissez un NIF/STAT malgache (10-17 chiffres) ou un SIREN / nom d’entreprise.');
+      return;
+    }
+    setCompanyVerifyError(null);
+    setIsVerifyingCompany(true);
+    try {
+      const res = await fetch(
+        `/api/company/verify?q=${encodeURIComponent(q)}&country=${companyCountry}`
+      );
+      const data = (await res.json()) as {
+        results?: typeof companySearchResults;
+        error?: string;
+      };
+      if (!res.ok) {
+        setCompanyVerifyError(data.error || 'Vérification indisponible.');
+        setCompanySearchResults([]);
+        return;
+      }
+      const list = data.results || [];
+      setCompanySearchResults(list);
+      if (list.length === 0) {
+        setCompanyVerifyError('Aucune entreprise trouvée avec cet identifiant.');
+      }
+    } catch {
+      setCompanyVerifyError('Erreur réseau lors de la vérification du registre.');
+    } finally {
+      setIsVerifyingCompany(false);
+    }
+  };
+
   const inferStep1TypeAndCategory = (promptText: string, currentTab: DossierType) => {
     const lower = promptText.toLowerCase();
+    const otherScore = [
+      'solidaire',
+      'personnel',
+      'urgence',
+      'ponctuel',
+      'famille',
+      'aléa',
+      'alea',
+      'autre',
+    ].filter((k) => lower.includes(k)).length;
+
     const investScore = [
       'invest',
       'construi',
@@ -257,33 +359,13 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       'bâtiment',
       'batiment',
       'travaux',
-    ].filter((k) => lower.includes(k)).length;
-
-    const debtScore = [
-      'dette',
-      'créanc',
-      'creanc',
-      'rachat de crédit',
-      'rachat crédit',
-      'rachat de credit',
-      'regroupement',
-      'découvert',
-      'decouvert',
-      'huissier',
-      'contentieux',
-      'impayé',
-      'impaye',
-      'apurer',
-      'solder',
-      'urssaf',
-      'décote',
-      'decote',
+      'parts',
+      'capital',
     ].filter((k) => lower.includes(k)).length;
 
     let detectedType: DossierType = currentTab;
-    if (investScore > debtScore && investScore > 0) detectedType = 'investissement';
-    else if (debtScore > investScore && debtScore > 0) detectedType = 'dette';
-    else if (lower.includes('solidaire') || lower.includes('litige')) detectedType = 'autre';
+    if (investScore >= otherScore && investScore > 0) detectedType = 'investissement';
+    else if (otherScore > investScore && otherScore > 0) detectedType = 'autre';
 
     let detectedCat = 'Autre domaine';
     if (
@@ -311,7 +393,7 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       detectedCat = 'Automobile & Logistique';
     } else if (lower.includes('freelance') || lower.includes('libérale') || lower.includes('indépendant')) {
       detectedCat = 'Profession libérale & Freelance';
-    } else if (lower.includes('crédit') || lower.includes('découvert') || lower.includes('particulier') || lower.includes('dette')) {
+    } else if (lower.includes('particulier') || lower.includes('personnel')) {
       detectedCat = 'Particulier / Refinancement';
     }
 
@@ -358,17 +440,13 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
           fields.description?.trim() ||
           (targetType === 'investissement'
             ? `Demande de financement participatif direct pour concrétiser ce projet (${trimmed.slice(0, 130)}). Contrepartie négociable en direct (parts, dividendes ou remboursement).`
-            : targetType === 'dette'
-            ? `Demande d'apurement amiable pour solder et restructurer une situation existante (${trimmed.slice(0, 130)}). Protocole sous seing privé avec échéancier mensuel réaliste.`
             : `Demande d'accompagnement financier direct (${trimmed.slice(0, 130)}) avec engagement clair et justificatifs fournis.`);
         setDescription(cleanDesc);
 
         const tabLabel =
           targetType === 'investissement'
-            ? 'Onglet 2 : Investissement'
-            : targetType === 'dette'
-            ? 'Onglet 1 : Dette à régler'
-            : 'Onglet 3 : Autre sujet';
+            ? 'Onglet 1 : Investissement'
+            : 'Onglet 2 : Autre sujet';
 
         const redirectPrefix =
           previousType !== targetType
@@ -401,22 +479,31 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       setSolvaInput('');
     };
 
+    const firstReadablePdf = uploadedFiles.find(
+      (f) => f.base64 && (f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
+    );
+
     try {
       const payload = JSON.stringify({
         step,
         userPrompt: trimmed,
         userName: applicantName || currentUser?.name,
+        attachedPdf: firstReadablePdf?.base64
+          ? {
+              name: firstReadablePdf.name,
+              dataBase64: firstReadablePdf.base64,
+            }
+          : undefined,
         dossierContext: {
           type,
           category,
           title,
           description,
           amountRequested,
-          originalDebtAmount,
           targetInterestRate,
           termMonths,
           maxMonthlyPayment,
-          investmentReturnMode: type === 'dette' ? 'remboursement' : investmentReturnMode,
+          investmentReturnMode,
           equityPercentage,
           counterpartSummary,
           projectDetails: {
@@ -437,21 +524,8 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       });
 
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 28000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000);
       let response: Response | null = null;
-
-      try {
-        response = await fetch('/api/solvasolution/draft', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: payload,
-        });
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-
-      const rawText = await response.text();
       let parsedData: {
         recommendedType?: DossierType;
         recommendedCategory?: string;
@@ -472,24 +546,37 @@ export const DepositDossierModal: React.FC<DepositDossierModalProps> = ({
       } | null = null;
 
       try {
-        parsedData = JSON.parse(rawText);
+        response = await fetch('/api/solvasolution/draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: payload,
+        });
+        const rawText = await response.text();
+        try {
+          parsedData = JSON.parse(rawText);
+        } catch {
+          parsedData = null;
+        }
       } catch {
-        parsedData = null;
+        response = null;
+      } finally {
+        window.clearTimeout(timeoutId);
       }
 
-      if (response.ok && parsedData && !parsedData.error) {
+      if (response && response.ok && parsedData && !parsedData.error) {
         applyDraftFields(parsedData);
         return;
       }
 
       // Automatic fallback via /api/solvasolution/chat
       const fallbackController = new AbortController();
-      const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 28000);
+      const fallbackTimeout = window.setTimeout(() => fallbackController.abort(), 45000);
       try {
         const tagInstruction =
           step === 1
-            ? `Rédige pour mon dossier SolvaPact sans aucun Markdown (#, *, _). Choisis le bon onglet (investissement si projet/construction/matériel/école, dette si dettes/crédits/découvert) et réponds exactement avec :
-[[ONGLET]]investissement ou dette ou autre[[/ONGLET]]
+            ? `Rédige pour mon dossier SolvaPact sans aucun Markdown (#, *, _). Choisis le bon onglet (investissement pour projet/entreprise/matériel/école ou autre pour besoin ponctuel/solidaire) et réponds exactement avec :
+[[ONGLET]]investissement ou autre[[/ONGLET]]
 [[TITRE]]titre clair de 6 à 14 mots[[/TITRE]]
 [[RESUME]]résumé d'accroche complet en 2 phrases rassurantes[[/RESUME]]
 Besoin : ${trimmed}`
@@ -554,8 +641,6 @@ Ma demande : ${trimmed}`
           const rawOnglet = pickFlexTag(['ONGLET', 'TYPE']).toLowerCase();
           const finalType: DossierType = rawOnglet.includes('invest')
             ? 'investissement'
-            : rawOnglet.includes('dette')
-            ? 'dette'
             : rawOnglet.includes('autre')
             ? 'autre'
             : detectedType;
@@ -570,7 +655,7 @@ Ma demande : ${trimmed}`
           const r =
             pickFlexTag(['RESUME', 'RÉSUMÉ', 'RESUMÉ', 'ACCROCHE']) ||
             cleanedLines
-              .filter((l) => l !== t && !l.toLowerCase().startsWith('investissement') && !l.toLowerCase().startsWith('dette'))
+              .filter((l) => l !== t && !l.toLowerCase().startsWith('investissement'))
               .slice(0, 2)
               .join(' ')
               .slice(0, 360);
@@ -598,9 +683,7 @@ Ma demande : ${trimmed}`
             validTerms.reduce((b, c) => (Math.abs(c - v) < Math.abs(b - v) ? c : b), 48);
           const rawMode = pickFlexTag(['MODE']).toLowerCase();
           const detectedMode: InvestmentReturnMode =
-            type === 'dette'
-              ? 'remboursement'
-              : rawMode.includes('part') || rawMode.includes('capital') || rawMode.includes('equity')
+            rawMode.includes('part') || rawMode.includes('capital') || rawMode.includes('equity')
               ? 'parts_sociales'
               : rawMode.includes('redevance') || rawMode.includes('ca') || rawMode.includes('royalt')
               ? 'redevance_ca'
@@ -620,9 +703,7 @@ Ma demande : ${trimmed}`
           const pAmount = rawAmt >= 500 && rawAmt <= 1000000 ? rawAmt : amountRequested;
           const pTerm = rawDur >= 12 && rawDur <= 120 ? snapTerm(rawDur) : termMonths;
           const pRate =
-            type === 'dette'
-              ? 5.5
-              : detectedMode === 'parts_sociales' || detectedMode === 'redevance_ca'
+            detectedMode === 'parts_sociales' || detectedMode === 'redevance_ca'
               ? 0
               : rawRate >= 1 && rawRate <= 15
               ? Math.round(rawRate * 10) / 10
@@ -642,7 +723,7 @@ Ma demande : ${trimmed}`
               equityPercentage: pParts,
               amountRequested: pAmount,
               termMonths: pTerm,
-              targetInterestRate: type === 'dette' ? undefined : pRate,
+              targetInterestRate: pRate,
               maxMonthlyPayment: pMens,
             },
           });
@@ -667,49 +748,21 @@ Ma demande : ${trimmed}`
     if (!solvaProposal) return;
     setAmountRequested(solvaProposal.amountRequested);
     setTermMonths(solvaProposal.termMonths);
-    if (type !== 'dette' && solvaProposal.investmentReturnMode) {
+    if (solvaProposal.investmentReturnMode) {
       setInvestmentReturnMode(solvaProposal.investmentReturnMode);
     }
-    if (type !== 'dette' && typeof solvaProposal.equityPercentage === 'number') {
+    if (typeof solvaProposal.equityPercentage === 'number') {
       setEquityPercentage(solvaProposal.equityPercentage);
     }
-    if (type === 'dette') {
-      if (originalDebtAmount < solvaProposal.amountRequested) {
-        setOriginalDebtAmount(Math.round(solvaProposal.amountRequested / 0.8));
-      }
-    } else if (typeof solvaProposal.targetInterestRate === 'number') {
+    if (typeof solvaProposal.targetInterestRate === 'number') {
       setTargetInterestRate(solvaProposal.targetInterestRate);
     }
     setMaxMonthlyPayment(solvaProposal.maxMonthlyPayment);
     setSolvaProposal((prev) => (prev ? { ...prev, applied: true } : null));
   };
 
-  const applyPreset = (presetKey: 'credit' | 'tresorerie' | 'contentieux' | 'solidaire' | 'parts') => {
-    if (presetKey === 'credit') {
-      setType('dette');
-      setInvestmentReturnMode('remboursement');
-      setTitle('Regroupement & Apurement de crédits conso et découverts');
-      setCategory('Particulier / Refinancement');
-      setProjectStage('Restructuration urgente');
-      setLegalStructure('Particulier');
-      setOwnContribution(0);
-      setOriginalDebtAmount(16000);
-      setAmountRequested(12000);
-      setTargetDiscount(25);
-      setTermMonths(36);
-      setMaxMonthlyPayment(310);
-      setUseOfFunds('Solde intégral de 2 crédits à la consommation et résorption du découvert bancaire');
-      setTimeline('Déblocage souhaité sous 15 jours');
-      setProjectedRevenue('Économie nette de 420 €/mois sur le budget global');
-      setEmploymentTenure('CDI depuis 4 ans');
-      setDescription(
-        "Restructuration complète de 2 crédits à la consommation et d'un découvert bancaire avec rachat au comptant décoté."
-      );
-      setContextStory(
-        'Salarié en CDI, je cherche à assainir ma situation financière en regroupant mes charges en une mensualité unique et supportable sous seing privé.'
-      );
-      setGuaranteeType('Engagement de prélèvement SEPA & cession sur salaire');
-    } else if (presetKey === 'parts') {
+  const applyPreset = (presetKey: 'parts' | 'tresorerie' | 'solidaire') => {
+    if (presetKey === 'parts') {
       setType('investissement');
       setInvestmentReturnMode('parts_sociales');
       setEquityPercentage(15);
@@ -756,30 +809,6 @@ Ma demande : ${trimmed}`
         "Artisan du bâtiment depuis 4 ans, activité rentable avec carnet de commandes plein. Délais bancaires trop longs, je sollicite un investisseur réactif."
       );
       setGuaranteeType('Nantissement de matériel professionnel & caution solidaire');
-    } else if (presetKey === 'contentieux') {
-      setType('dette');
-      setInvestmentReturnMode('remboursement');
-      setTitle("Apurement amiable d'une créance fournisseur avec décote comptant");
-      setCategory('Commerce de bouche');
-      setProjectStage('Situation urgente / Restructuration');
-      setLegalStructure('Société (SAS / SARL / EURL)');
-      setOwnContribution(1000);
-      setOriginalDebtAmount(10000);
-      setAmountRequested(7000);
-      setTargetDiscount(30);
-      setTermMonths(24);
-      setMaxMonthlyPayment(315);
-      setUseOfFunds('7 000 € versés directement pour éteindre la créance de 10 000 €');
-      setTimeline('Protocole signé sous 10 jours');
-      setProjectedRevenue('Trésorerie libérée immédiatement après clôture du litige');
-      setEmploymentTenure('Gérant depuis 5 ans');
-      setDescription(
-        'Règlement transactionnel sous seing privé avec le créancier pour éteindre le litige commercial et solder définitivement le dossier.'
-      );
-      setContextStory(
-        "Le créancier a accepté par écrit un accord transactionnel à 70% de la somme. Je recherche un financeur pour débloquer les 7 000 € au comptant."
-      );
-      setGuaranteeType("Protocole d'accord sous seing privé avec désistement d'instance");
     } else {
       setType('autre');
       setInvestmentReturnMode('remboursement');
@@ -807,22 +836,17 @@ Ma demande : ${trimmed}`
   };
 
   const isEquityOrRevenueMode =
-    type !== 'dette' &&
-    (investmentReturnMode === 'parts_sociales' || investmentReturnMode === 'redevance_ca');
+    investmentReturnMode === 'parts_sociales' || investmentReturnMode === 'redevance_ca';
 
   const estimatedMonthly = isEquityOrRevenueMode
     ? 0
-    : calculateMonthlyPayment(
-        amountRequested,
-        type === 'dette' ? 5.5 : targetInterestRate,
-        termMonths
-      );
+    : calculateMonthlyPayment(amountRequested, targetInterestRate, termMonths);
 
   const effortRate = calculateEffortRate(monthlyIncome, existingCharges, estimatedMonthly);
   const computedRiskGrade = computeRiskGrade(effortRate);
   const resteAVivre = monthlyIncome - existingCharges - estimatedMonthly;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPaymentError(null);
 
@@ -847,9 +871,36 @@ Ma demande : ${trimmed}`
 
     setIsPublishing(true);
     setPaymentPhase('verifying');
-    window.setTimeout(() => {
-      setPaymentPhase('approved');
-      window.setTimeout(() => {
+
+    try {
+      const checkoutRes = await fetch('/api/payments/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'publication',
+          loyaltyActive: Boolean(currentUser?.loyaltyActive),
+          loyaltyExp: currentUser?.loyaltyExp || 0,
+          diamondPublicationsCount: currentUser?.diamondPublicationsCount || 0,
+          userEmail: currentUser?.email || applicantEmail,
+        }),
+      });
+      const checkoutData = (await checkoutRes.json()) as {
+        mode?: string;
+        verifiedAmount?: number;
+        checkoutUrl?: string;
+        transactionId?: string;
+        error?: string;
+      };
+      if (!checkoutRes.ok) {
+        throw new Error(checkoutData.error || 'Paiement refusé par le serveur.');
+      }
+
+      const verifiedPaidAmount =
+        typeof checkoutData.verifiedAmount === 'number'
+          ? checkoutData.verifiedAmount
+          : loyalty.publicationPrice;
+
+      const buildFinalDossierAndPayloads = () => {
         const nextExp = loyalty.active ? loyalty.exp + EXP_PER_DOSSIER : 0;
         const projectedUser: User | undefined = currentUser
           ? {
@@ -859,8 +910,7 @@ Ma demande : ${trimmed}`
           : undefined;
         const updatedLoyalty = getLoyaltyStatus(projectedUser);
 
-        const effectiveMode: InvestmentReturnMode =
-          type === 'dette' ? 'remboursement' : investmentReturnMode;
+        const effectiveMode: InvestmentReturnMode = investmentReturnMode;
 
         const defaultCounterpartSummary =
           effectiveMode === 'parts_sociales'
@@ -871,26 +921,19 @@ Ma demande : ${trimmed}`
             ? `Remboursement à ${targetInterestRate} % + ${equityPercentage} % de parts`
             : undefined;
 
+        const dossierId = `dos-${Date.now()}`;
         const newDossier: Dossier = {
-          id: `dos-${Date.now()}`,
+          id: dossierId,
+          ownerUid: currentUser?.uid || currentUser?.id,
           title:
             title ||
-            (type === 'dette'
-              ? 'Apurement de dette et rachat amiable'
-              : type === 'investissement'
+            (type === 'investissement'
               ? "Demande d'investissement & développement"
               : 'Dossier spécifique / Autre sujet'),
           type,
           category,
           amountRequested: Number(amountRequested),
-          originalDebtAmount: type === 'dette' ? Number(originalDebtAmount) : undefined,
-          targetInterestRate:
-            type === 'dette'
-              ? 5.5
-              : isEquityOrRevenueMode
-              ? 0
-              : Number(targetInterestRate),
-          targetDiscount: type === 'dette' ? Number(targetDiscount) : undefined,
+          targetInterestRate: isEquityOrRevenueMode ? 0 : Number(targetInterestRate),
           maxMonthlyPayment: isEquityOrRevenueMode ? 0 : Number(maxMonthlyPayment),
           termMonths: Number(termMonths),
           investmentReturnMode: effectiveMode,
@@ -907,10 +950,11 @@ Ma demande : ${trimmed}`
             employmentTenure: employmentTenure.trim() || undefined,
             equityExitNote: counterpartSummary.trim() || defaultCounterpartSummary,
           },
+          verifiedCompany,
           description:
             description ||
             `Dossier classé dans l'onglet ${
-              type === 'dette' ? 'Dette' : type === 'investissement' ? 'Investissement' : 'Autre sujet'
+              type === 'investissement' ? 'Investissement' : 'Autre sujet'
             } pour négociation directe avec des investisseurs.`,
           contextStory:
             contextStory ||
@@ -928,12 +972,12 @@ Ma demande : ${trimmed}`
             email: applicantEmail.trim() || currentUser?.email || '',
             phone: applicantPhone.trim() || currentUser?.phone || '',
             pseudonym: applicantPseudonym || `${(applicantName || 'Membre').split(' ')[0]}_Solv`,
-            city: city || currentUser?.city || 'France',
-            postalCode: postalCode || currentUser?.postalCode,
+            city: city || currentUser?.city || 'Antananarivo',
+            postalCode: postalCode || currentUser?.postalCode || '101',
             profession,
             monthlyIncome: Number(monthlyIncome),
             existingCharges: Number(existingCharges),
-            verifiedIdentity: uploadedFiles.length > 0,
+            verifiedIdentity: uploadedFiles.length > 0 || Boolean(verifiedCompany),
             verifiedIncome: uploadedFiles.length > 0,
             riskGrade: computedRiskGrade,
             loyaltyTier: updatedLoyalty.active ? updatedLoyalty.tier : undefined,
@@ -943,32 +987,82 @@ Ma demande : ${trimmed}`
                 : undefined,
           },
           documents: uploadedFiles.map((file, i) => ({
-            id: `doc-new-${Date.now()}-${i}`,
+            id: file.id || `doc-new-${Date.now()}-${i}`,
             name: file.name,
             category: 'justificatif_dette',
             size: file.sizeLabel,
             verified: true,
             date: new Date().toLocaleDateString('fr-FR'),
+            hasDownloadableFile: Boolean(file.dataUrl),
           })),
           status: 'open',
           createdAt: new Date().toLocaleDateString('fr-FR'),
           offersCount: 0,
           urgency: 'prioritaire',
-          publicationPaidAmount: loyalty.publicationPrice,
+          publicationPaidAmount: verifiedPaidAmount,
+          paymentVerifiedMode: checkoutData.mode || 'sandbox_verified',
           isDiamondPriority: updatedLoyalty.isDiamond || loyalty.isDiamond,
         };
 
-        setPaymentPhase(null);
-        setIsPublishing(false);
-        onSubmitDossier(newDossier, loyalty.publicationPrice);
-        onClose();
-        setStep(1);
-        setUploadedFiles([]);
-        setCardNumber('');
-        setExpiry('');
-        setCvc('');
-      }, 850);
-    }, 950);
+        const attachmentsPayload: AttachmentUploadPayload[] = uploadedFiles
+          .filter((f) => Boolean(f.dataUrl))
+          .map((f) => ({
+            id: f.id,
+            name: f.name,
+            mimeType: f.mimeType,
+            sizeLabel: f.sizeLabel,
+            dataUrl: f.dataUrl!,
+          }));
+
+        const privateContact = {
+          fullName: applicantName || currentUser?.name || 'Demandeur',
+          email: applicantEmail.trim() || currentUser?.email || '',
+          phone: applicantPhone.trim() || currentUser?.phone || undefined,
+        };
+
+        return { newDossier, attachmentsPayload, privateContact };
+      };
+
+      const { newDossier, attachmentsPayload, privateContact } = buildFinalDossierAndPayloads();
+
+      if (checkoutData.mode === 'stripe' && checkoutData.checkoutUrl) {
+        sessionStorage.setItem(
+          'solvapact_pending_dossier_stripe',
+          JSON.stringify({
+            dossier: newDossier,
+            paidAmount: verifiedPaidAmount,
+            attachments: attachmentsPayload,
+            privateContact,
+          })
+        );
+        window.location.href = checkoutData.checkoutUrl;
+        return;
+      }
+
+      window.setTimeout(() => {
+        setPaymentPhase('approved');
+        window.setTimeout(() => {
+          setPaymentPhase(null);
+          setIsPublishing(false);
+          onSubmitDossier(newDossier, verifiedPaidAmount, attachmentsPayload, privateContact);
+          onClose();
+          setStep(1);
+          setUploadedFiles([]);
+          setVerifiedCompany(undefined);
+          setCardNumber('');
+          setExpiry('');
+          setCvc('');
+        }, 850);
+      }, 650);
+    } catch (err) {
+      setPaymentPhase(null);
+      setIsPublishing(false);
+      setPaymentError(
+        err instanceof Error
+          ? err.message
+          : 'Erreur lors de la validation serveur du paiement.'
+      );
+    }
   };
 
   const solvaPromptMeta =
@@ -977,7 +1071,7 @@ Ma demande : ${trimmed}`
           question:
             'Expliquez en quelques mots votre besoin : SolvaSolution rédige votre titre et votre résumé d’accroche.',
           placeholder:
-            'Ex : Je souhaite racheter 2 crédits conso et un découvert de 12 000 € pour n’avoir plus qu’une mensualité...',
+            'Ex : Je cherche 15 000 € pour ouvrir un atelier à Antananarivo en échange de 15 % des parts...',
           buttonLabel: 'Rédiger titre & résumé',
           writesText: true,
         }
@@ -1040,9 +1134,9 @@ Ma demande : ${trimmed}`
         </div>
 
         {/* Step Progress Bar */}
-        <div className="w-full bg-slate-100 h-1">
+        <div className="w-full bg-slate-100 h-1.5">
           <div
-            className="bg-slate-900 h-1 transition-all duration-300"
+            className="bg-orange-600 h-1.5 transition-all duration-300"
             style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
@@ -1164,11 +1258,12 @@ Ma demande : ${trimmed}`
                             <span>
                               Durée : <strong className="text-white">{solvaProposal.termMonths} mois</strong>
                             </span>
-                            {type !== 'dette' && typeof solvaProposal.targetInterestRate === 'number' && (
-                              <span>
-                                Taux : <strong className="text-white">{solvaProposal.targetInterestRate} %</strong>
-                              </span>
-                            )}
+                            {typeof solvaProposal.targetInterestRate === 'number' &&
+                              solvaProposal.targetInterestRate > 0 && (
+                                <span>
+                                  Taux : <strong className="text-white">{solvaProposal.targetInterestRate} %</strong>
+                                </span>
+                              )}
                             {typeof solvaProposal.equityPercentage === 'number' &&
                               solvaProposal.equityPercentage > 0 && (
                                 <span>
@@ -1219,27 +1314,7 @@ Ma demande : ${trimmed}`
                 Sélectionnez l'onglet de classement pour votre dossier :
               </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div
-                  onClick={() => {
-                    setType('dette');
-                    setInvestmentReturnMode('remboursement');
-                  }}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    type === 'dette'
-                      ? 'border-amber-600 bg-amber-50/50 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <span className="text-xs font-bold text-amber-900 uppercase tracking-wider block mb-1">
-                    Onglet 1
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900">Dette à régler</h4>
-                  <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
-                    Rachat de créance, apurement contentieux, découvert ou crédit à solder avec décote amiable.
-                  </p>
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
                   onClick={() => setType('investissement')}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
@@ -1249,7 +1324,7 @@ Ma demande : ${trimmed}`
                   }`}
                 >
                   <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block mb-1">
-                    Onglet 2
+                    Onglet 1
                   </span>
                   <h4 className="text-sm font-bold text-slate-900">Investissement</h4>
                   <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
@@ -1261,16 +1336,16 @@ Ma demande : ${trimmed}`
                   onClick={() => setType('autre')}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                     type === 'autre'
-                      ? 'border-indigo-600 bg-indigo-50/50 shadow-xs'
+                      ? 'border-rose-600 bg-rose-50/50 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider block mb-1">
-                    Onglet 3
+                  <span className="text-xs font-bold text-rose-900 uppercase tracking-wider block mb-1">
+                    Onglet 2
                   </span>
                   <h4 className="text-sm font-bold text-slate-900">Autre sujet</h4>
                   <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
-                    Accompagnement solidaire, litige particulier, accord spécifique ou restructuration sur-mesure.
+                    Accompagnement solidaire, partenariat spécifique, besoin ponctuel ou accord sur-mesure.
                   </p>
                 </div>
               </div>
@@ -1280,7 +1355,7 @@ Ma demande : ${trimmed}`
                   <Zap className="w-3.5 h-3.5 text-amber-500" />
                   <span>Modèles fréquents (cliquez pour pré-remplir instantanément) :</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px]">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
                   <button
                     type="button"
                     onClick={() => applyPreset('parts')}
@@ -1291,27 +1366,11 @@ Ma demande : ${trimmed}`
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyPreset('credit')}
-                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-slate-900 block">Rachat crédits & découverts</span>
-                    <span className="text-[10px] text-slate-500">12 000 € · Décote 25% · 36 mois</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => applyPreset('tresorerie')}
                     className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
                   >
                     <span className="font-bold text-slate-900 block">Trésorerie Pro / Artisan</span>
                     <span className="text-[10px] text-slate-500">15 000 € · 6.5% · 24 mois</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('contentieux')}
-                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-slate-900 block">Apurement contentieux</span>
-                    <span className="text-[10px] text-slate-500">7 000 € · Décote 30% · 24 mois</span>
                   </button>
                   <button
                     type="button"
@@ -1332,11 +1391,9 @@ Ma demande : ${trimmed}`
                   type="text"
                   required
                   placeholder={
-                    type === 'dette'
-                      ? 'Ex: Rachat de créance fournisseur et apurement sur 24 mois'
-                      : type === 'investissement'
+                    type === 'investissement'
                       ? "Ex: Ouverture au capital (15 % de parts) pour création d'une école ou entreprise"
-                      : "Ex: Financement solidaire pour reprise d'activité"
+                      : "Ex: Financement solidaire pour reprise d'activité ou besoin ponctuel"
                   }
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -1433,89 +1490,85 @@ Ma demande : ${trimmed}`
           {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-4">
-              {type !== 'dette' && (
-                <div>
-                  <label className="text-xs font-bold text-slate-800 block mb-2">
-                    Comment rémunérez-vous l'investisseur ?
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setInvestmentReturnMode('parts_sociales')}
-                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                        investmentReturnMode === 'parts_sociales'
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <span className="text-xs font-bold text-slate-900 block">
-                        Parts sociales / Entrée au capital (%)
-                      </span>
-                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
-                        Aucun remboursement mensuel : l'investisseur reçoit des parts et dividendes du projet.
-                      </span>
-                    </button>
+              <div>
+                <label className="text-xs font-bold text-slate-800 block mb-2">
+                  Comment rémunérez-vous l'investisseur ou le partenaire ?
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setInvestmentReturnMode('parts_sociales')}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      investmentReturnMode === 'parts_sociales'
+                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Parts sociales / Entrée au capital (%)
+                    </span>
+                    <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                      Aucun remboursement mensuel : l'investisseur reçoit des parts et dividendes du projet.
+                    </span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setInvestmentReturnMode('redevance_ca')}
-                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                        investmentReturnMode === 'redevance_ca'
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <span className="text-xs font-bold text-slate-900 block">
-                        Partage des bénéfices / Royalties (%)
-                      </span>
-                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
-                        Reversement d'un % du chiffre d'affaires ou des bénéfices sans mensualité fixe.
-                      </span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvestmentReturnMode('redevance_ca')}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      investmentReturnMode === 'redevance_ca'
+                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Partage des bénéfices / Royalties (%)
+                    </span>
+                    <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                      Reversement d'un % du chiffre d'affaires ou des bénéfices sans mensualité fixe.
+                    </span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setInvestmentReturnMode('remboursement')}
-                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                        investmentReturnMode === 'remboursement'
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <span className="text-xs font-bold text-slate-900 block">
-                        Remboursement mensuel avec intérêts
-                      </span>
-                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
-                        Prêt direct remboursé chaque mois selon un taux annuel fixe et une durée choisie.
-                      </span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvestmentReturnMode('remboursement')}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      investmentReturnMode === 'remboursement'
+                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Remboursement mensuel avec intérêts
+                    </span>
+                    <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                      Prêt direct remboursé chaque mois selon un taux annuel fixe et une durée choisie.
+                    </span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setInvestmentReturnMode('hybride')}
-                      className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                        investmentReturnMode === 'hybride'
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <span className="text-xs font-bold text-slate-900 block">
-                        Formule mixte (Remboursement + Parts)
-                      </span>
-                      <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
-                        Remboursement du capital à taux modéré + une part minoritaire au capital.
-                      </span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInvestmentReturnMode('hybride')}
+                    className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      investmentReturnMode === 'hybride'
+                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Formule mixte (Remboursement + Parts)
+                    </span>
+                    <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                      Remboursement du capital à taux modéré + une part minoritaire au capital.
+                    </span>
+                  </button>
                 </div>
-              )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    {type === 'dette'
-                      ? 'Montant proposé pour le rachat (€)'
-                      : type === 'investissement'
+                    {type === 'investissement'
                       ? "Montant d'investissement recherché (€)"
                       : 'Montant sollicité (€)'}
                   </label>
@@ -1528,28 +1581,12 @@ Ma demande : ${trimmed}`
                     onChange={(e) => setAmountRequested(Number(e.target.value))}
                     className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
                   />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Capital apporté par l'investisseur
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Capital apporté · Équivalent indicatif : <strong className="text-orange-700">{formatAriaryApprox(amountRequested)}</strong>
                   </span>
                 </div>
 
-                {type === 'dette' ? (
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Dette nominale d'origine réclamée (€)
-                    </label>
-                    <input
-                      type="number"
-                      min="500"
-                      value={originalDebtAmount}
-                      onChange={(e) => setOriginalDebtAmount(Number(e.target.value))}
-                      className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
-                    />
-                    <span className="text-[11px] text-slate-400 mt-1 block">
-                      Permet de mesurer l'économie de décote
-                    </span>
-                  </div>
-                ) : isEquityOrRevenueMode ? (
+                {isEquityOrRevenueMode ? (
                   <div>
                     <label className="text-xs font-semibold text-slate-700 block mb-1">
                       {investmentReturnMode === 'parts_sociales'
@@ -1594,7 +1631,7 @@ Ma demande : ${trimmed}`
                 )}
               </div>
 
-              {type !== 'dette' && investmentReturnMode === 'hybride' && (
+              {investmentReturnMode === 'hybride' && (
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
                     Bonus parts sociales / intéressement en plus du remboursement (%)
@@ -1741,11 +1778,7 @@ Ma demande : ${trimmed}`
                       type="text"
                       value={useOfFunds}
                       onChange={(e) => setUseOfFunds(e.target.value)}
-                      placeholder={
-                        type === 'dette'
-                          ? 'Ex: 8 000 € crédit auto + 4 000 € découvert bancaire'
-                          : 'Ex: 6 000 € travaux locaux, 4 000 € matériel, 3 000 € trésorerie'
-                      }
+                      placeholder="Ex: 6 000 € travaux locaux, 4 000 € matériel, 3 000 € trésorerie"
                       className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
                     />
                   </div>
@@ -1766,12 +1799,12 @@ Ma demande : ${trimmed}`
 
               <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs flex items-center justify-between text-emerald-950">
                 <div>
-                  <span className="font-semibold block">0 % de commission sur le montant financé</span>
+                  <span className="font-semibold block">Accord direct et 100 % net entre les parties</span>
                   <span className="text-[11px] text-emerald-800">
-                    Vous recevrez 100 % du capital négocié. Seuls {formatEuro(loyalty.publicationPrice)} seront réglés à l'étape finale pour publier l'annonce.
+                    Aucun intermédiaire bancaire sur le capital convenu. Seuls {formatEuro(loyalty.publicationPrice)} seront réglés à l'étape finale pour publier l'annonce.
                   </span>
                 </div>
-                <span className="font-bold tabular-nums text-sm">0 %</span>
+                <span className="font-bold text-sm">100 % net</span>
               </div>
             </div>
           )}
@@ -1824,28 +1857,29 @@ Ma demande : ${trimmed}`
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Téléphone de contact pour négocier *
+                    Téléphone de contact (+261 MVola/Airtel/Orange ou +33) *
                   </label>
                   <input
                     type="tel"
                     required
                     value={applicantPhone}
                     onChange={(e) => setApplicantPhone(e.target.value)}
-                    placeholder="06 12 34 56 78"
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    placeholder="+261 34 12 345 67"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Ville *</label>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Ville (Madagascar / Diaspora) *</label>
                   <input
                     type="text"
                     required
+                    placeholder="Antananarivo, Toamasina..."
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
 
@@ -1856,9 +1890,10 @@ Ma demande : ${trimmed}`
                   <input
                     type="text"
                     required
+                    placeholder="101"
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 tabular-nums"
                   />
                 </div>
 
@@ -1974,19 +2009,13 @@ Ma demande : ${trimmed}`
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    {type === 'dette'
-                      ? 'Économie ou objectif mensuel visé'
-                      : 'Chiffre d’affaires ou retombées prévisionnelles'}
+                    Chiffre d’affaires ou retombées prévisionnelles
                   </label>
                   <input
                     type="text"
                     value={projectedRevenue}
                     onChange={(e) => setProjectedRevenue(e.target.value)}
-                    placeholder={
-                      type === 'dette'
-                        ? 'Ex: Baisse des mensualités de 400 €/mois'
-                        : 'Ex: 8 500 €/mois de recettes estimées la 1ère année'
-                    }
+                    placeholder="Ex: 8 500 €/mois de recettes estimées la 1ère année"
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
@@ -2006,8 +2035,101 @@ Ma demande : ${trimmed}`
                   }
                   value={guaranteeType}
                   onChange={(e) => setGuaranteeType(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
+              </div>
+
+              {/* Optional Company Registry Verification (Madagascar NIF/STAT or INSEE SIREN) */}
+              <div className="p-3.5 rounded-xl bg-orange-50/70 border border-orange-200 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-orange-950">
+                    <Building2 className="w-4 h-4 text-orange-600" />
+                    <span>Vérifier votre entreprise (NIF / STAT Madagascar ou SIREN) — optionnel</span>
+                  </div>
+                  {verifiedCompany && (
+                    <button
+                      type="button"
+                      onClick={() => setVerifiedCompany(undefined)}
+                      className="text-[11px] font-semibold text-rose-700 hover:underline cursor-pointer"
+                    >
+                      Retirer
+                    </button>
+                  )}
+                </div>
+
+                {verifiedCompany ? (
+                  <div className="p-2.5 rounded-lg bg-white border border-emerald-300 text-xs flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-emerald-800 block">
+                        ✓ {verifiedCompany.legalName} ({verifiedCompany.identifier})
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {verifiedCompany.legalForm || ''} {verifiedCompany.city ? `· ${verifiedCompany.city}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={companyCountry}
+                        onChange={(e) => setCompanyCountry(e.target.value as 'MG' | 'FR')}
+                        className="px-2.5 py-2 text-xs bg-white border border-orange-200 rounded-lg focus:outline-none cursor-pointer"
+                      >
+                        <option value="MG">Madagascar (NIF / STAT)</option>
+                        <option value="FR">France (SIREN / Nom)</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={companyQuery}
+                        onChange={(e) => setCompanyQuery(e.target.value)}
+                        placeholder={
+                          companyCountry === 'MG'
+                            ? 'Ex: NIF 10 chiffres ou STAT 17 chiffres'
+                            : 'Ex: Numéro SIREN ou raison sociale'
+                        }
+                        className="flex-1 px-3 py-2 text-xs bg-white border border-orange-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyCompany}
+                        disabled={isVerifyingCompany}
+                        className="px-3 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        <span>{isVerifyingCompany ? 'Contrôle...' : 'Vérifier'}</span>
+                      </button>
+                    </div>
+                    {companyVerifyError && (
+                      <p className="text-[11px] text-rose-700 font-medium">{companyVerifyError}</p>
+                    )}
+                    {companySearchResults.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {companySearchResults.map((resItem) => (
+                          <button
+                            key={`${resItem.registryType}-${resItem.identifier}`}
+                            type="button"
+                            onClick={() => {
+                              setVerifiedCompany({
+                                ...resItem,
+                                verifiedAt: new Date().toLocaleDateString('fr-FR'),
+                              });
+                              setCompanySearchResults([]);
+                            }}
+                            className="w-full text-left p-2 rounded-lg bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-xs transition-colors cursor-pointer"
+                          >
+                            <span className="font-bold text-slate-900 block">
+                              {resItem.legalName} — {resItem.identifier}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {resItem.city || 'Madagascar'} {resItem.activity ? `· ${resItem.activity}` : ''}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -2090,7 +2212,7 @@ Ma demande : ${trimmed}`
                 <textarea
                   rows={4}
                   required
-                  placeholder="Expliquez pourquoi vous sollicitez ce financement ou ce rachat de dette, et comment vous garantissez le remboursement (ou demandez à SolvaSolution ci-dessus de le rédiger pour vous)..."
+                  placeholder="Expliquez pourquoi vous sollicitez ce financement ou partenariat, et comment vous sécurisez l'investisseur (ou demandez à SolvaSolution ci-dessus de le rédiger pour vous)..."
                   value={contextStory}
                   onChange={(e) => setContextStory(e.target.value)}
                   className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed"
@@ -2160,11 +2282,7 @@ Ma demande : ${trimmed}`
                     </span>
                     <h4 className="text-sm font-bold text-white">
                       Mise en ligne dans l'onglet{' '}
-                      {type === 'dette'
-                        ? 'Dette'
-                        : type === 'investissement'
-                        ? 'Investissement'
-                        : 'Autre sujet'}
+                      {type === 'investissement' ? 'Investissement' : 'Autre sujet'}
                     </h4>
                   </div>
                   <div className="text-left sm:text-right">
@@ -2305,7 +2423,7 @@ Ma demande : ${trimmed}`
               <button
                 type="button"
                 onClick={() => setStep((s: number) => (s + 1) as 1 | 2 | 3 | 4)}
-                className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-5 py-2.5 text-xs font-bold text-white bg-orange-600 rounded-xl hover:bg-orange-500 flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <span>Étape suivante</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -2314,7 +2432,7 @@ Ma demande : ${trimmed}`
               <button
                 type="submit"
                 disabled={isPublishing}
-                className="px-6 py-2.5 text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 rounded-lg flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                className="px-6 py-2.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 rounded-xl flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
               >
                 {isPublishing ? (
                   <>

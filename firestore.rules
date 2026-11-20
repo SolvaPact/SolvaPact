@@ -61,7 +61,9 @@ service cloud.firestore {
           'uid', 'name', 'firstName', 'lastName', 'email', 'phone', 'profession',
           'role', 'city', 'postalCode', 'reasonForJoining', 'loyaltyActive',
           'loyaltyExp', 'loyaltyActivatedAt', 'diamondPublicationsCount',
-          'acceptedTermsAt', 'createdAt', 'updatedAt'
+          'acceptedTermsAt', 'investorDirectoryConsent', 'investorContactEmail',
+          'investorFocus', 'investorTicketRange', 'investorBio', 'investorConsentAt',
+          'createdAt', 'updatedAt'
         ])
         && isValidId(data.uid)
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
@@ -80,7 +82,78 @@ service cloud.firestore {
         && isValidOptionalString(data, 'reasonForJoining', 200)
         && isValidOptionalString(data, 'loyaltyActivatedAt', 32)
         && isValidOptionalNumber(data, 'diamondPublicationsCount', 0, 10000)
-        && isValidOptionalString(data, 'acceptedTermsAt', 32);
+        && isValidOptionalString(data, 'acceptedTermsAt', 32)
+        && (!('investorDirectoryConsent' in data) || data.investorDirectoryConsent is bool)
+        && isValidOptionalString(data, 'investorContactEmail', 160)
+        && isValidOptionalString(data, 'investorFocus', 160)
+        && isValidOptionalString(data, 'investorTicketRange', 80)
+        && isValidOptionalString(data, 'investorBio', 600)
+        && isValidOptionalString(data, 'investorConsentAt', 32);
+    }
+
+    function isValidInvestorDirectoryEntry(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'city', 'contactEmail', 'consentGiven',
+          'consentAcceptedAt', 'active', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'city', 'profession', 'contactEmail', 'contactPhone',
+          'investmentFocus', 'ticketRange', 'bio', 'loyaltyTier', 'consentGiven',
+          'consentAcceptedAt', 'active', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && isValidOptionalString(data, 'profession', 100)
+        && data.contactEmail is string && data.contactEmail.size() >= 3 && data.contactEmail.size() <= 160
+        && isValidOptionalString(data, 'contactPhone', 32)
+        && isValidOptionalString(data, 'investmentFocus', 160)
+        && isValidOptionalString(data, 'ticketRange', 80)
+        && isValidOptionalString(data, 'bio', 600)
+        && (!('loyaltyTier' in data) || data.loyaltyTier in ['none', 'standard', 'bronze', 'silver', 'gold', 'diamond'])
+        && data.consentGiven is bool
+        && data.consentAcceptedAt is string && data.consentAcceptedAt.size() >= 1 && data.consentAcceptedAt.size() <= 32
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDirectSubmission(data) {
+      return data.keys().hasAll([
+          'id', 'senderUid', 'senderName', 'senderEmail', 'senderCity',
+          'investorUid', 'investorName', 'investorEmail', 'dossierTitle',
+          'dossierType', 'category', 'amountRequested', 'termMonths',
+          'dossierSummary', 'personalMessage', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'senderUid', 'senderName', 'senderEmail', 'senderPhone', 'senderCity',
+          'investorUid', 'investorName', 'investorEmail', 'dossierId', 'dossierTitle',
+          'dossierType', 'category', 'amountRequested', 'termMonths',
+          'investmentReturnMode', 'equityPercentage', 'dossierSummary',
+          'personalMessage', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.senderUid)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 120
+        && data.senderEmail is string && data.senderEmail.size() >= 3 && data.senderEmail.size() <= 160
+        && isValidOptionalString(data, 'senderPhone', 32)
+        && data.senderCity is string && data.senderCity.size() >= 1 && data.senderCity.size() <= 80
+        && isValidId(data.investorUid)
+        && data.investorName is string && data.investorName.size() >= 1 && data.investorName.size() <= 120
+        && data.investorEmail is string && data.investorEmail.size() >= 3 && data.investorEmail.size() <= 160
+        && (!('dossierId' in data) || isValidId(data.dossierId))
+        && data.dossierTitle is string && data.dossierTitle.size() >= 3 && data.dossierTitle.size() <= 180
+        && data.dossierType in ['investissement', 'autre']
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 80
+        && data.amountRequested is number && data.amountRequested >= 500 && data.amountRequested <= 1000000
+        && data.termMonths is number && data.termMonths >= 6 && data.termMonths <= 120
+        && (!('investmentReturnMode' in data) || data.investmentReturnMode in ['remboursement', 'parts_sociales', 'redevance_ca', 'hybride'])
+        && isValidOptionalNumber(data, 'equityPercentage', 0, 100)
+        && data.dossierSummary is string && data.dossierSummary.size() >= 3 && data.dossierSummary.size() <= 2000
+        && data.personalMessage is string && data.personalMessage.size() >= 3 && data.personalMessage.size() <= 2000
+        && data.status in ['envoye', 'consulte', 'interesse', 'archive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
     }
 
     function isValidDossier(data) {
@@ -124,15 +197,15 @@ service cloud.firestore {
         && isValidOptionalNumber(data, 'originalDebtAmount', 0, 5000000)
         && isValidOptionalNumber(data, 'targetInterestRate', 0, 30)
         && isValidOptionalNumber(data, 'targetDiscount', 0, 90)
-        && (!( 'investmentReturnMode' in data ) || data.investmentReturnMode in ['remboursement', 'parts_sociales', 'redevance_ca', 'hybride'])
+        && (!('investmentReturnMode' in data) || data.investmentReturnMode in ['remboursement', 'parts_sociales', 'redevance_ca', 'hybride'])
         && isValidOptionalNumber(data, 'equityPercentage', 0, 100)
         && isValidOptionalString(data, 'counterpartSummary', 400)
-        && (!( 'projectDetails' in data ) || data.projectDetails is map)
-        && (!( 'verifiedCompany' in data ) || data.verifiedCompany is map)
+        && (!('projectDetails' in data) || data.projectDetails is map)
+        && (!('verifiedCompany' in data) || data.verifiedCompany is map)
         && isValidOptionalString(data, 'createdAtLabel', 32)
         && isValidOptionalNumber(data, 'publicationPaidAmount', 0, 500)
         && isValidOptionalString(data, 'paymentVerifiedMode', 40)
-        && (!( 'isDiamondPriority' in data ) || data.isDiamondPriority is bool);
+        && (!('isDiamondPriority' in data) || data.isDiamondPriority is bool);
     }
 
     function isValidPrivateContact(data) {
@@ -277,7 +350,9 @@ service cloud.firestore {
                 incoming().diff(existing()).affectedKeys().hasOnly([
                   'name', 'firstName', 'lastName', 'phone', 'profession',
                   'role', 'city', 'postalCode', 'reasonForJoining',
-                  'acceptedTermsAt', 'updatedAt'
+                  'acceptedTermsAt', 'investorDirectoryConsent', 'investorContactEmail',
+                  'investorFocus', 'investorTicketRange', 'investorBio', 'investorConsentAt',
+                  'updatedAt'
                 ])
               )
               || (
@@ -302,6 +377,101 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin();
+    }
+
+    match /investor_directory/{investorUid} {
+      allow get: if isSignedIn() && isVerifiedUser() && isValidId(investorUid)
+        && (
+          (existing().active == true && existing().consentGiven == true)
+          || isOwner(investorUid)
+          || isAdmin()
+        );
+
+      allow list: if isSignedIn() && isVerifiedUser()
+        && (
+          (resource.data.active == true && resource.data.consentGiven == true)
+          || resource.data.uid == request.auth.uid
+          || isAdminByEmail()
+        );
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(investorUid)
+        && isOwner(investorUid)
+        && isValidInvestorDirectoryEntry(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().consentGiven == true
+        && incoming().active == true
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() && isVerifiedUser()
+        && isValidId(investorUid)
+        && isValidInvestorDirectoryEntry(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(investorUid)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'city', 'profession', 'contactEmail', 'contactPhone',
+              'investmentFocus', 'ticketRange', 'bio', 'loyaltyTier',
+              'consentGiven', 'consentAcceptedAt', 'active', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && isVerifiedUser() && isValidId(investorUid) && isOwner(investorUid));
+    }
+
+    match /direct_submissions/{submissionId} {
+      allow get: if isSignedIn() && isVerifiedUser() && isValidId(submissionId)
+        && (
+          existing().senderUid == request.auth.uid
+          || existing().investorUid == request.auth.uid
+          || isAdmin()
+        );
+
+      allow list: if isSignedIn() && isVerifiedUser()
+        && (
+          resource.data.senderUid == request.auth.uid
+          || resource.data.investorUid == request.auth.uid
+          || isAdminByEmail()
+        );
+
+      allow create: if isSignedIn() && isVerifiedUser()
+        && isValidId(submissionId)
+        && isValidDirectSubmission(incoming())
+        && incoming().id == submissionId
+        && incoming().senderUid == request.auth.uid
+        && incoming().status == 'envoye'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/investor_directory/$(incoming().investorUid))
+        && (!('dossierId' in incoming()) || exists(/databases/$(database)/documents/dossiers/$(incoming().dossierId)));
+
+      allow update: if isSignedIn() && isVerifiedUser()
+        && isValidId(submissionId)
+        && isValidDirectSubmission(incoming())
+        && incoming().id == existing().id
+        && incoming().senderUid == existing().senderUid
+        && incoming().investorUid == existing().investorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().investorUid == request.auth.uid
+            && existing().status != 'archive'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && incoming().status in ['consulte', 'interesse', 'archive']
+          )
+        );
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && isVerifiedUser() && isValidId(submissionId) && existing().senderUid == request.auth.uid);
     }
 
     match /dossiers/{dossierId} {

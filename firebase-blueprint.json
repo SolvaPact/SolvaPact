@@ -69,6 +69,30 @@
           "type": "string",
           "maxLength": 32
         },
+        "investorDirectoryConsent": {
+          "type": "boolean"
+        },
+        "investorContactEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "investorFocus": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "investorTicketRange": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "investorBio": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "investorConsentAt": {
+          "type": "string",
+          "maxLength": 32
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -516,12 +540,218 @@
         }
       },
       "required": ["id", "userId", "name", "email", "subject", "message", "status", "createdAt"]
+    },
+    "InvestorDirectoryEntry": {
+      "title": "InvestorDirectoryEntry",
+      "description": "Opt-in public-to-members investor profile published only after explicit consent letter acceptance.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "city": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "profession": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "contactEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "contactPhone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "investmentFocus": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "ticketRange": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "bio": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "loyaltyTier": {
+          "type": "string",
+          "enum": ["none", "standard", "bronze", "silver", "gold", "diamond"]
+        },
+        "consentGiven": {
+          "type": "boolean"
+        },
+        "consentAcceptedAt": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "city",
+        "contactEmail",
+        "consentGiven",
+        "consentAcceptedAt",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DirectSubmission": {
+      "title": "DirectSubmission",
+      "description": "Direct project dossier transmission sent by a demandeur to a consenting investor.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "senderEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "senderPhone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "senderCity": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "investorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "investorName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "investorEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "dossierId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dossierTitle": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "dossierType": {
+          "type": "string",
+          "enum": ["investissement", "autre"]
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "amountRequested": {
+          "type": "number"
+        },
+        "termMonths": {
+          "type": "number"
+        },
+        "investmentReturnMode": {
+          "type": "string",
+          "enum": ["remboursement", "parts_sociales", "redevance_ca", "hybride"]
+        },
+        "equityPercentage": {
+          "type": "number"
+        },
+        "dossierSummary": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "personalMessage": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["envoye", "consulte", "interesse", "archive"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "senderUid",
+        "senderName",
+        "senderEmail",
+        "senderCity",
+        "investorUid",
+        "investorName",
+        "investorEmail",
+        "dossierTitle",
+        "dossierType",
+        "category",
+        "amountRequested",
+        "termMonths",
+        "dossierSummary",
+        "personalMessage",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Private user account profiles and loyalty tiers."
+    },
+    "/investor_directory/{investorUid}": {
+      "schema": { "$ref": "#/entities/InvestorDirectoryEntry" },
+      "description": "Opt-in investor contact directory accessible to verified signed-in members."
+    },
+    "/direct_submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/DirectSubmission" },
+      "description": "Direct dossier pitches sent by demandeurs to consenting investors."
     },
     "/dossiers/{dossierId}": {
       "schema": { "$ref": "#/entities/DossierPublic" },

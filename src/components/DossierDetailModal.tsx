@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Dossier } from '../types';
+import { AttachmentUploadPayload, Dossier } from '../types';
 import {
   formatEuro,
+  formatAriaryApprox,
   formatPct,
   calculateMonthlyPayment,
   calculateTotalInterest,
@@ -9,12 +10,16 @@ import {
   calculateEffortRate,
   getLoyaltyNameColorClass,
 } from '../utils/finance';
+import { fetchDossierAttachments } from '../services/firestoreService';
+import { useModalEscape } from '../utils/useModalEscape';
 import {
   X,
   ShieldCheck,
   FileText,
   CheckCircle2,
   Mail,
+  Download,
+  Building2,
 } from 'lucide-react';
 
 interface DossierDetailModalProps {
@@ -33,14 +38,42 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
   onMarkAccepted,
 }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'echeancier' | 'documents'>('details');
+  const [downloadableFiles, setDownloadableFiles] = useState<AttachmentUploadPayload[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   useEffect(() => {
     setActiveTab('details');
+    setDownloadableFiles([]);
   }, [dossier?.id]);
+
+  useEffect(() => {
+    if (!dossier || activeTab !== 'documents' || dossier.documents.length === 0) return;
+    let active = true;
+    setLoadingFiles(true);
+    fetchDossierAttachments(dossier.id)
+      .then((files) => {
+        if (active) setDownloadableFiles(files);
+      })
+      .catch(() => {
+        if (active) setDownloadableFiles([]);
+      })
+      .finally(() => {
+        if (active) setLoadingFiles(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [dossier?.id, activeTab, dossier?.documents.length]);
+
+  useModalEscape(Boolean(dossier), onClose);
 
   if (!dossier) return null;
 
-  const isDebt = dossier.type === 'dette';
+  const isEquityOrRevenueOnly =
+    dossier.investmentReturnMode === 'parts_sociales' ||
+    dossier.investmentReturnMode === 'redevance_ca' ||
+    dossier.maxMonthlyPayment <= 0;
+
   const effortRate = calculateEffortRate(
     dossier.applicant.monthlyIncome,
     dossier.applicant.existingCharges,
@@ -72,16 +105,10 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
             <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
               <span
                 className={
-                  isDebt
-                    ? 'text-amber-700'
-                    : dossier.type === 'investissement'
-                    ? 'text-emerald-700'
-                    : 'text-indigo-700'
+                  dossier.type === 'investissement' ? 'text-emerald-700' : 'text-rose-700'
                 }
               >
-                {isDebt
-                  ? 'Dossier de rachat ou apurement de dette'
-                  : dossier.type === 'investissement'
+                {dossier.type === 'investissement'
                   ? 'Dossier de financement de projet'
                   : 'Dossier autre sujet'}
               </span>
@@ -155,23 +182,19 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200/70">
                     <div>
                       <span className="text-[11px] text-slate-500 uppercase font-medium">
-                        {isDebt ? 'Montant à racheter' : 'Montant demandé'}
+                        Montant demandé
                       </span>
                       <p className="text-lg font-bold text-slate-900 tabular-nums">
                         {formatEuro(dossier.amountRequested)}
                       </p>
-                      {isDebt && dossier.originalDebtAmount && (
-                        <span className="text-xs text-slate-400 line-through tabular-nums">
-                          Initial : {formatEuro(dossier.originalDebtAmount)}
-                        </span>
-                      )}
+                      <span className="text-[11px] font-medium text-orange-700 block tabular-nums">
+                        {formatAriaryApprox(dossier.amountRequested)}
+                      </span>
                     </div>
 
                     <div>
                       <span className="text-[11px] text-slate-500 uppercase font-medium">
-                        {isDebt
-                          ? 'Décote visée'
-                          : isParts
+                        {isParts
                           ? 'Parts proposées'
                           : isRoyalty
                           ? 'Partage revenus'
@@ -180,9 +203,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                           : 'Taux annuel ciblé'}
                       </span>
                       <p className="text-lg font-bold text-slate-900 tabular-nums">
-                        {isDebt && dossier.targetDiscount
-                          ? `-${dossier.targetDiscount} %`
-                          : isNoMonthly
+                        {isNoMonthly
                           ? `${dossier.equityPercentage || 15} %`
                           : isHybrid
                           ? `${dossier.targetInterestRate ? formatPct(dossier.targetInterestRate) : 'Mixte'} + ${dossier.equityPercentage || 10}%`
@@ -233,9 +254,25 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
               {/* Direct Negotiation Notice */}
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-3.5 py-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200 text-emerald-950">
                 <span className="font-medium">
-                  0 % de commission SolvaPact · Cliquez sur « Négocier » pour obtenir les coordonnées directes du créateur (Gmail, e-mail, téléphone).
+                  Mise en relation 100 % directe · Cliquez sur « Négocier » pour ouvrir la messagerie directe ou accéder au Gmail / téléphone (+261 / +33) et convenir via MVola, Orange Money ou virement bancaire.
                 </span>
               </div>
+
+              {dossier.verifiedCompany && (
+                <div className="p-3.5 rounded-xl bg-orange-50/80 border border-orange-200 flex items-start gap-3 text-xs">
+                  <Building2 className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-orange-950 block">
+                      Entreprise vérifiée ({dossier.verifiedCompany.registryType === 'NIF_STAT_MG' ? 'NIF / STAT Madagascar' : 'INSEE / SIREN'}) : {dossier.verifiedCompany.legalName}
+                    </span>
+                    <span className="text-[11px] text-orange-800 block mt-0.5">
+                      Identifiant : {dossier.verifiedCompany.identifier}
+                      {dossier.verifiedCompany.city ? ` · ${dossier.verifiedCompany.city}` : ''}
+                      {dossier.verifiedCompany.activity ? ` · ${dossier.verifiedCompany.activity}` : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Project Precision Details */}
               {(dossier.counterpartSummary ||
@@ -314,7 +351,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
               {/* Context Story */}
               <div>
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Exposé du projet ou de la situation de dette
+                  Exposé du projet ou du besoin
                 </h4>
                 <div className="p-4 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 leading-relaxed whitespace-pre-line">
                   {dossier.contextStory}
@@ -376,18 +413,28 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Taux d'effort estimé :</span>
-                      <span
-                        className={`font-semibold tabular-nums ${
-                          effortRate <= 35
-                            ? 'text-emerald-700'
-                            : effortRate <= 45
-                            ? 'text-amber-700'
-                            : 'text-rose-700'
-                        }`}
-                      >
-                        {effortRate}% ({effortRate <= 35 ? 'Sain' : effortRate <= 45 ? 'Modéré' : 'Élevé'})
+                      <span className="text-slate-500">
+                        {isEquityOrRevenueOnly ? 'Mode de contribution :' : "Taux d'effort estimé :"}
                       </span>
+                      {isEquityOrRevenueOnly ? (
+                        <span className="font-semibold text-emerald-700">
+                          Parts / Partage CA ({dossier.equityPercentage || 15}%)
+                        </span>
+                      ) : dossier.applicant.monthlyIncome <= 0 ? (
+                        <span className="font-semibold text-slate-600">Non renseigné</span>
+                      ) : (
+                        <span
+                          className={`font-semibold tabular-nums ${
+                            effortRate <= 35
+                              ? 'text-emerald-700'
+                              : effortRate <= 45
+                              ? 'text-amber-700'
+                              : 'text-rose-700'
+                          }`}
+                        >
+                          {effortRate}% ({effortRate <= 35 ? 'Sain' : effortRate <= 45 ? 'Modéré' : 'Élevé'})
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -438,29 +485,38 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
                     <span className="text-slate-500 block">Mensualité théorique estimée :</span>
-                    <span className="text-lg font-bold text-slate-900 tabular-nums">
+                    <span className="text-lg font-bold text-slate-900 tabular-nums block">
                       {formatEuro(monthlyCalculated)} / mois
+                    </span>
+                    <span className="text-[11px] text-orange-700 tabular-nums">
+                      {formatAriaryApprox(monthlyCalculated)} / mois
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Intérêts totaux reversés :</span>
-                    <span className="text-lg font-bold text-emerald-700 tabular-nums">
+                    <span className="text-lg font-bold text-emerald-700 tabular-nums block">
                       +{formatEuro(totalInterest)}
+                    </span>
+                    <span className="text-[11px] text-slate-500 tabular-nums">
+                      +{formatAriaryApprox(totalInterest)}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Total remboursé :</span>
-                    <span className="text-lg font-bold text-slate-900 tabular-nums">
+                    <span className="text-lg font-bold text-slate-900 tabular-nums block">
                       {formatEuro(dossier.amountRequested + totalInterest)}
+                    </span>
+                    <span className="text-[11px] text-slate-500 tabular-nums">
+                      {formatAriaryApprox(dossier.amountRequested + totalInterest)}
                     </span>
                   </div>
                 </div>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-xs text-left">
+                <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto thin-scrollbar">
+                  <table className="w-full min-w-[520px] text-xs text-left">
                     <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3">Mois</th>
@@ -510,31 +566,47 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
 
               {dossier.documents.length > 0 ? (
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                  {dossier.documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-slate-100 text-slate-700">
-                          <FileText className="w-4 h-4" />
+                  {dossier.documents.map((doc) => {
+                    const matchedAtt = downloadableFiles.find((f) => f.name === doc.name);
+                    return (
+                      <div
+                        key={doc.id}
+                        className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2 rounded-lg bg-slate-100 text-slate-700 shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-900 truncate">{doc.name}</p>
+                            <p className="text-[11px] text-slate-500">
+                              {doc.size} · Déposé le {doc.date}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-900">{doc.name}</p>
-                          <p className="text-[11px] text-slate-500">
-                            {doc.size} · Déposé le {doc.date}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Joint
-                        </span>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {loadingFiles ? (
+                            <span className="text-[11px] text-slate-400">Chargement...</span>
+                          ) : matchedAtt?.dataUrl ? (
+                            <a
+                              href={matchedAtt.dataUrl}
+                              download={matchedAtt.name}
+                              className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Télécharger</span>
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Joint
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-500">
@@ -559,7 +631,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => onMarkAccepted(dossier)}
-                className="px-4 py-2.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Dossier accepté</span>
@@ -571,10 +643,10 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                 onClose();
                 onOpenContact(dossier);
               }}
-              className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
+              className="px-5 py-2.5 text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 rounded-xl transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
             >
               <Mail className="w-4 h-4" />
-              <span>Négocier (Voir les coordonnées de contact)</span>
+              <span>Négocier en direct</span>
             </button>
           </div>
         </div>

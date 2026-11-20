@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActiveTab, User, Dossier } from '../types';
 import { getLoyaltyNameColorClass, getLoyaltyStatus } from '../utils/finance';
-import { PlusCircle, LogOut, HelpCircle, Award, Compass, BarChart3 } from 'lucide-react';
+import { PlusCircle, LogOut, HelpCircle, Award, Compass, BarChart3, Send } from 'lucide-react';
 import solvapactLogo from '../assets/images/solvapact_logo_1793983769514.jpg';
 
 interface HeaderProps {
@@ -13,7 +13,9 @@ interface HeaderProps {
   onOpenAuth: () => void;
   onLogout: () => void;
   onOpenLoyalty: () => void;
+  onOpenProfileSettings?: () => void;
   onOpenDailyReport?: () => void;
+  unreadIncomingCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,9 +27,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   onLogout,
   onOpenLoyalty,
+  onOpenProfileSettings,
   onOpenDailyReport,
+  unreadIncomingCount = 0,
 }) => {
-  const detteCount = dossiers.filter((d) => d.type === 'dette').length;
   const investissementCount = dossiers.filter((d) => d.type === 'investissement').length;
   const autreCount = dossiers.filter((d) => d.type === 'autre').length;
   const loyalty = getLoyaltyStatus(currentUser);
@@ -37,21 +40,38 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 h-16">
-          {/* Zone 1: Wordmark & Logo */}
+          {/* Zone 1: Wordmark & Logo Madagascar */}
           <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => setActiveTab('explorer')}
               className="text-left group flex items-center gap-2.5 focus:outline-none cursor-pointer"
-              title="SolvaPact"
+              title="SolvaPact Madagascar"
             >
-              <img
-                src={solvapactLogo}
-                alt="Logo SolvaPact"
-                className="w-9 h-9 rounded-lg object-contain border border-slate-200/80 shadow-xs bg-white"
-              />
-              <span className="text-xl font-bold tracking-tight text-slate-900 group-hover:text-slate-700 transition-colors">
-                SolvaPact
-              </span>
+              <div className="relative">
+                <img
+                  src={solvapactLogo}
+                  alt="Logo SolvaPact"
+                  className="w-9 h-9 rounded-lg object-contain border border-slate-200/80 shadow-xs bg-white"
+                />
+                <span
+                  aria-hidden="true"
+                  className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-3.5 overflow-hidden rounded-[3px] border border-white shadow-2xs"
+                >
+                  <span className="w-1 bg-white" />
+                  <span className="flex-1 flex flex-col">
+                    <span className="h-1/2 bg-[#FC3D32]" />
+                    <span className="h-1/2 bg-[#007E3A]" />
+                  </span>
+                </span>
+              </div>
+              <div className="leading-none">
+                <span className="text-xl font-bold tracking-tight text-slate-900 group-hover:text-orange-600 transition-colors block">
+                  SolvaPact
+                </span>
+                <span className="text-[10px] font-bold text-orange-600 tracking-wide">
+                  Madagascar
+                </span>
+              </div>
             </button>
           </div>
 
@@ -70,20 +90,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('dette')}
-              className={`hover:text-amber-800 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
-                activeTab === 'dette'
-                  ? 'text-amber-900 font-bold border-b-2 border-amber-800'
-                  : ''
-              }`}
-            >
-              <span>Dettes</span>
-              <span className="text-[11px] text-amber-700 font-mono tabular-nums">
-                ({detteCount})
-              </span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('investissement')}
               className={`hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
                 activeTab === 'investissement'
@@ -99,16 +105,33 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('autre')}
-              className={`hover:text-indigo-800 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
+              className={`hover:text-rose-700 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
                 activeTab === 'autre'
-                  ? 'text-indigo-900 font-bold border-b-2 border-indigo-800'
+                  ? 'text-rose-800 font-bold border-b-2 border-rose-700'
                   : ''
               }`}
             >
               <span>Autres sujets</span>
-              <span className="text-[11px] text-indigo-700 font-mono tabular-nums">
+              <span className="text-[11px] text-rose-700 font-mono tabular-nums">
                 ({autreCount})
               </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('prendre_contact')}
+              className={`hover:text-orange-600 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
+                activeTab === 'prendre_contact'
+                  ? 'text-orange-600 font-bold border-b-2 border-orange-600'
+                  : ''
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Prendre contact</span>
+              {unreadIncomingCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-orange-600 text-white text-[10px] font-bold leading-tight tabular-nums">
+                  {unreadIncomingCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -149,24 +172,30 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Zone 3: Primary Action + Loyalty + Auth */}
           <div className="flex items-center gap-2.5 shrink-0">
             {currentUser ? (
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex flex-col text-right text-xs">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenProfileSettings}
+                  title="Modifier mon statut (Demandeur / Investisseur) et ma lettre de consentement"
+                  className="hidden sm:flex flex-col text-right text-xs px-2.5 py-1 rounded-xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors cursor-pointer"
+                >
                   {loyalty.active && loyalty.badgeTitle && (
                     <span className={`${nameColorClass} text-[10px] uppercase tracking-wider leading-none mb-0.5`}>
                       {loyalty.badgeTitle}
                     </span>
                   )}
-                  <span className={`${nameColorClass} leading-tight max-w-[160px] truncate`}>
+                  <span className={`${nameColorClass} leading-tight max-w-[160px] truncate font-semibold`}>
                     {currentUser.name}
                   </span>
-                  <span className="text-[10px] text-slate-500 truncate max-w-[160px]">
-                    {currentUser.profession || currentUser.role} · {currentUser.city}
+                  <span className="text-[10px] text-slate-500 truncate max-w-[165px]">
+                    {currentUser.role === 'investisseur' ? 'Investisseur' : 'Demandeur'} · {currentUser.city}
                   </span>
-                </div>
+                </button>
                 <button
                   onClick={onLogout}
                   title="Déconnexion"
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  aria-label="Déconnexion"
+                  className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -219,10 +248,10 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Tablet / Mobile subbar */}
-      <div className="xl:hidden flex items-center justify-around overflow-x-auto border-t border-slate-200 px-2 py-2 bg-slate-50 text-xs gap-2">
+      <div className="xl:hidden flex items-center justify-start sm:justify-around overflow-x-auto thin-scrollbar border-t border-slate-200 px-2 py-1.5 bg-slate-50 text-xs gap-1.5">
         <button
           onClick={() => setActiveTab('decouverte')}
-          className={`py-1 px-2 whitespace-nowrap ${
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'decouverte'
               ? 'font-bold text-emerald-900 border-b-2 border-emerald-900'
               : 'text-slate-600'
@@ -231,16 +260,8 @@ export const Header: React.FC<HeaderProps> = ({
           Découvrir
         </button>
         <button
-          onClick={() => setActiveTab('dette')}
-          className={`py-1 px-2 whitespace-nowrap ${
-            activeTab === 'dette' ? 'font-bold text-amber-900 border-b-2 border-amber-900' : 'text-slate-600'
-          }`}
-        >
-          Dettes ({detteCount})
-        </button>
-        <button
           onClick={() => setActiveTab('investissement')}
-          className={`py-1 px-2 whitespace-nowrap ${
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'investissement'
               ? 'font-bold text-emerald-900 border-b-2 border-emerald-900'
               : 'text-slate-600'
@@ -250,15 +271,30 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('autre')}
-          className={`py-1 px-2 whitespace-nowrap ${
-            activeTab === 'autre' ? 'font-bold text-indigo-900 border-b-2 border-indigo-900' : 'text-slate-600'
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'autre' ? 'font-bold text-rose-800 border-b-2 border-rose-700' : 'text-slate-600'
           }`}
         >
-          Autre ({autreCount})
+          Autres ({autreCount})
+        </button>
+        <button
+          onClick={() => setActiveTab('prendre_contact')}
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+            activeTab === 'prendre_contact'
+              ? 'font-bold text-orange-600 border-b-2 border-orange-600'
+              : 'text-slate-600'
+          }`}
+        >
+          <span>Prendre contact</span>
+          {unreadIncomingCount > 0 && (
+            <span className="px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-bold">
+              {unreadIncomingCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('simulateur')}
-          className={`py-1 px-2 whitespace-nowrap ${
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'simulateur' ? 'font-bold text-slate-900 border-b-2 border-slate-900' : 'text-slate-600'
           }`}
         >
@@ -266,7 +302,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('mes_dossiers')}
-          className={`py-1 px-2 whitespace-nowrap ${
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'mes_dossiers' ? 'font-bold text-slate-900 border-b-2 border-slate-900' : 'text-slate-600'
           }`}
         >
@@ -274,17 +310,33 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
         <button
           onClick={onOpenLoyalty}
-          className="py-1 px-2 whitespace-nowrap text-amber-800 font-semibold"
+          className="min-h-[36px] py-1 px-2.5 whitespace-nowrap text-amber-800 font-semibold cursor-pointer"
         >
           Fidélité
         </button>
+        {currentUser && onOpenProfileSettings && (
+          <button
+            onClick={onOpenProfileSettings}
+            className="min-h-[36px] py-1 px-2.5 whitespace-nowrap text-slate-700 font-semibold cursor-pointer"
+          >
+            Mon profil
+          </button>
+        )}
+        {onOpenDailyReport && (
+          <button
+            onClick={onOpenDailyReport}
+            className="min-h-[36px] py-1 px-2.5 whitespace-nowrap text-slate-800 font-bold cursor-pointer"
+          >
+            Bilan
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('aide')}
-          className={`py-1 px-2 whitespace-nowrap ${
+          className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'aide' ? 'font-bold text-blue-900 border-b-2 border-blue-900' : 'text-slate-600'
           }`}
         >
-          Aide & IA
+          Aide &amp; IA
         </button>
       </div>
     </header>

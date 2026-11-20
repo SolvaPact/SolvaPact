@@ -59,7 +59,7 @@ const STARTER_QUESTIONS = [
   'Quel onglet choisir pour ma situation ?',
   'Combien coûte la publication d’un dossier ?',
   'Comment fonctionne le Compte Fidélité (80 €) ?',
-  'Y a-t-il une commission sur les fonds ?',
+  'Comment fonctionnent les paiements et accords sur SolvaPact ?',
 ];
 
 export const HelpView: React.FC<HelpViewProps> = ({
@@ -82,6 +82,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [backdropError, setBackdropError] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   // Direct Human Escalation Form State
@@ -166,7 +167,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
 
       for (let attempt = 0; attempt < 2; attempt++) {
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 28000);
+        const timeoutId = window.setTimeout(() => controller.abort(), 45000);
         try {
           response = await fetch('/api/solvasolution/chat', {
             method: 'POST',
@@ -377,19 +378,22 @@ export const HelpView: React.FC<HelpViewProps> = ({
 
           {/* Chat Feed with Futuristic AI Backdrop */}
           <div className="relative h-[400px] bg-slate-950 overflow-hidden">
-            <img
-              src={solvaBackdrop}
-              alt=""
-              aria-hidden="true"
-              referrerPolicy="no-referrer"
-              className="absolute inset-0 w-full h-full object-cover opacity-85 pointer-events-none select-none"
-            />
+            {!backdropError && (
+              <img
+                src={solvaBackdrop}
+                alt=""
+                aria-hidden="true"
+                onError={() => setBackdropError(true)}
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover opacity-85 pointer-events-none select-none"
+              />
+            )}
             <div
               aria-hidden="true"
               className="absolute inset-0 bg-gradient-to-b from-slate-950/55 via-slate-950/45 to-slate-950/70 pointer-events-none"
             />
 
-            <div className="relative z-10 h-full overflow-y-auto p-5 space-y-4">
+            <div className="relative z-10 h-full overflow-y-auto thin-scrollbar p-5 space-y-4">
               {messages.map((m) => (
                 <div
                   key={m.id}
@@ -673,6 +677,14 @@ export const HelpView: React.FC<HelpViewProps> = ({
             <h4 className="font-bold text-slate-900">Accès rapides :</h4>
             <button
               type="button"
+              onClick={() => onNavigateToTab('prendre_contact')}
+              className="w-full text-left p-2.5 rounded-lg hover:bg-orange-50 border border-orange-200/70 flex items-center justify-between text-orange-800 font-semibold cursor-pointer"
+            >
+              <span>Prendre contact &amp; Annuaire des investisseurs</span>
+              <ExternalLink className="w-3.5 h-3.5 text-orange-500" />
+            </button>
+            <button
+              type="button"
               onClick={() => onNavigateToTab('decouverte')}
               className="w-full text-left p-2.5 rounded-lg hover:bg-slate-50 border border-slate-100 flex items-center justify-between text-slate-700 font-medium cursor-pointer"
             >
@@ -684,7 +696,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
               onClick={() => onNavigateToTab('simulateur')}
               className="w-full text-left p-2.5 rounded-lg hover:bg-slate-50 border border-slate-100 flex items-center justify-between text-slate-700 font-medium cursor-pointer"
             >
-              <span>Calculateur gratuit de mensualités & décotes</span>
+              <span>Calculateur gratuit de mensualités &amp; rendements</span>
               <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
             </button>
           </div>
@@ -713,7 +725,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
               Comment se passent la négociation et les virements ?
             </h4>
             <p className="text-slate-600 leading-relaxed text-xs">
-              SolvaPact est exclusivement une plateforme de mise en relation. En cliquant sur « Négocier » sur un dossier publié, vous accédez aux coordonnées du créateur (e-mail / Gmail, téléphone, prénom, nom) pour <strong>négocier et effectuer vos virements directement en dehors du site</strong>, avec 0 % de commission.
+              SolvaPact est exclusivement une plateforme de mise en relation. En cliquant sur « Négocier » sur un dossier publié, vous accédez aux coordonnées du créateur (e-mail / Gmail, téléphone, prénom, nom) pour <strong>négocier et effectuer vos transferts (MVola, Orange Money, virement) directement en dehors du site</strong>, 100 % net entre vous.
             </p>
           </div>
 

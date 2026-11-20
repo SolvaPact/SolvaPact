@@ -1,4 +1,4 @@
-export type DossierType = 'dette' | 'investissement' | 'autre';
+export type DossierType = 'investissement' | 'autre';
 
 export type InvestmentReturnMode = 'remboursement' | 'parts_sociales' | 'redevance_ca' | 'hybride';
 
@@ -11,6 +11,16 @@ export interface ProjectDetails {
   projectedRevenue?: string;
   equityExitNote?: string;
   employmentTenure?: string;
+}
+
+export interface VerifiedCompanyInfo {
+  registryType: 'INSEE_FR' | 'NIF_STAT_MG';
+  identifier: string;
+  legalName: string;
+  legalForm?: string;
+  city?: string;
+  activity?: string;
+  verifiedAt: string;
 }
 
 export type RiskGrade = 'A' | 'B' | 'C' | 'D';
@@ -43,10 +53,20 @@ export interface DocumentItem {
   size: string;
   verified: boolean;
   date: string;
+  hasDownloadableFile?: boolean;
+}
+
+export interface AttachmentUploadPayload {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeLabel: string;
+  dataUrl: string;
 }
 
 export interface Dossier {
   id: string;
+  ownerUid?: string;
   title: string;
   type: DossierType;
   category: string;
@@ -60,6 +80,7 @@ export interface Dossier {
   equityPercentage?: number;
   counterpartSummary?: string;
   projectDetails?: ProjectDetails;
+  verifiedCompany?: VerifiedCompanyInfo;
   description: string;
   contextStory: string;
   guaranteeType: string;
@@ -70,11 +91,13 @@ export interface Dossier {
   offersCount: number;
   urgency: 'normale' | 'prioritaire' | 'urgente';
   publicationPaidAmount?: number;
+  paymentVerifiedMode?: string;
   isDiamondPriority?: boolean;
 }
 
 export interface User {
   id: string;
+  uid?: string;
   name: string;
   firstName?: string;
   lastName?: string;
@@ -92,6 +115,53 @@ export interface User {
   loyaltyExp?: number;
   loyaltyActivatedAt?: string;
   diamondPublicationsCount?: number;
+  investorDirectoryConsent?: boolean;
+  investorContactEmail?: string;
+  investorFocus?: string;
+  investorTicketRange?: string;
+  investorBio?: string;
+  investorConsentAt?: string;
+}
+
+export interface InvestorDirectoryEntry {
+  uid: string;
+  displayName: string;
+  city: string;
+  profession?: string;
+  contactEmail: string;
+  contactPhone?: string;
+  investmentFocus?: string;
+  ticketRange?: string;
+  bio?: string;
+  loyaltyTier?: LoyaltyTier;
+  consentGiven: boolean;
+  consentAcceptedAt: string;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface DirectSubmission {
+  id: string;
+  senderUid: string;
+  senderName: string;
+  senderEmail: string;
+  senderPhone?: string;
+  senderCity: string;
+  investorUid: string;
+  investorName: string;
+  investorEmail: string;
+  dossierId?: string;
+  dossierTitle: string;
+  dossierType: DossierType;
+  category: string;
+  amountRequested: number;
+  termMonths: number;
+  investmentReturnMode?: InvestmentReturnMode;
+  equityPercentage?: number;
+  dossierSummary: string;
+  personalMessage: string;
+  status: 'envoye' | 'consulte' | 'interesse' | 'archive';
+  createdAt?: string;
 }
 
 export interface Offer {
@@ -116,6 +186,36 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   attachedOffer?: Offer;
+}
+
+export interface FirestoreNegotiationThread {
+  id: string;
+  dossierId: string;
+  dossierTitle: string;
+  dossierType: DossierType;
+  creatorUid: string;
+  creatorPseudonym: string;
+  investorUid: string;
+  investorName: string;
+  sharedCreatorEmail?: string;
+  sharedCreatorPhone?: string;
+  status: 'active' | 'agreement_signed' | 'closed';
+  proposedAmount?: number;
+  proposedTermMonths?: number;
+  proposedRateOrEquity?: string;
+  createdAtLabel?: string;
+  updatedAtLabel?: string;
+}
+
+export interface FirestoreNegotiationMessage {
+  id: string;
+  senderUid: string;
+  creatorUid: string;
+  investorUid: string;
+  senderName: string;
+  senderRole: 'demandeur' | 'investisseur' | 'system';
+  text: string;
+  createdAtLabel?: string;
 }
 
 export interface NegotiationThread {
@@ -154,9 +254,9 @@ export interface InvoiceData {
 export type ActiveTab =
   | 'decouverte'
   | 'explorer'
-  | 'dette'
   | 'investissement'
   | 'autre'
+  | 'prendre_contact'
   | 'mes_dossiers'
   | 'simulateur'
   | 'aide';

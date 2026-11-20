@@ -3,6 +3,7 @@ import {
   calculateMonthlyPayment,
   calculateTotalInterest,
   calculateTotalRepayment,
+  formatAriaryApprox,
   formatEuro,
   formatPct,
   generateAmortizationSchedule,
@@ -12,52 +13,80 @@ import {
   ArrowRight,
   ShieldCheck,
   TrendingUp,
-  HandCoins,
   PiggyBank,
-  Banknote,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Percent,
 } from 'lucide-react';
 
 interface FinanceCalculatorProps {
-  onOpenDepositWithParams?: (type: 'financement' | 'dette', amount: number, term: number) => void;
+  onOpenDepositWithParams?: (type: 'investissement' | 'autre', amount: number, term: number) => void;
 }
 
 export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
   onOpenDepositWithParams,
 }) => {
-  const [calcMode, setCalcMode] = useState<'dette' | 'financement' | 'investisseur'>('dette');
-
-  // 1. Debt restructuring state
-  const [debtAmount, setDebtAmount] = useState<number>(18000);
-  const [currentMonthlyPaid, setCurrentMonthlyPaid] = useState<number>(520);
-  const [discountPct, setDiscountPct] = useState<number>(25);
-  const [debtRepayTerm, setDebtRepayTerm] = useState<number>(48);
-  const [debtInterestRate, setDebtInterestRate] = useState<number>(5.5);
+  const [calcMode, setCalcMode] = useState<'financement' | 'investisseur'>('financement');
 
   // 2. Financing state
   const [principal, setPrincipal] = useState<number>(12000);
+  const [principalInput, setPrincipalInput] = useState<string>('12000');
   const [rate, setRate] = useState<number>(6.0);
   const [termMonths, setTermMonths] = useState<number>(36);
   const [showSchedule, setShowSchedule] = useState<boolean>(false);
 
   // 3. Investor ROI state
   const [investAmount, setInvestAmount] = useState<number>(10000);
+  const [investAmountInput, setInvestAmountInput] = useState<string>('10000');
   const [investRate, setInvestRate] = useState<number>(7.0);
   const [investTerm, setInvestTerm] = useState<number>(24);
 
-  // Math for debt settlement
-  const cashSettlementAmount = Math.round(debtAmount * (1 - discountPct / 100));
-  const debtorSavingsCapital = debtAmount - cashSettlementAmount;
-  const debtNewMonthly = calculateMonthlyPayment(
-    cashSettlementAmount,
-    debtInterestRate,
-    debtRepayTerm
-  );
-  const monthlySavings = Math.max(0, currentMonthlyPaid - debtNewMonthly);
-  const totalDebtPaidNew = calculateTotalRepayment(debtNewMonthly, debtRepayTerm);
+  const clampAmount = (val: number) => Math.min(1000000, Math.max(100, Math.round(val)));
+
+  const handlePrincipalInputChange = (raw: string) => {
+    setPrincipalInput(raw);
+    const cleaned = raw.replace(/\s+/g, '').replace(',', '.');
+    if (cleaned === '') return;
+    const parsed = Number(cleaned);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      setPrincipal(Math.min(1000000, Math.round(parsed)));
+    }
+  };
+
+  const handlePrincipalInputBlur = () => {
+    const cleaned = principalInput.replace(/\s+/g, '').replace(',', '.');
+    const parsed = Number(cleaned);
+    const safe = !Number.isNaN(parsed) && parsed > 0 ? clampAmount(parsed) : principal;
+    setPrincipal(safe);
+    setPrincipalInput(String(safe));
+  };
+
+  const handlePrincipalSliderChange = (val: number) => {
+    setPrincipal(val);
+    setPrincipalInput(String(val));
+  };
+
+  const handleInvestInputChange = (raw: string) => {
+    setInvestAmountInput(raw);
+    const cleaned = raw.replace(/\s+/g, '').replace(',', '.');
+    if (cleaned === '') return;
+    const parsed = Number(cleaned);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      setInvestAmount(Math.min(1000000, Math.round(parsed)));
+    }
+  };
+
+  const handleInvestInputBlur = () => {
+    const cleaned = investAmountInput.replace(/\s+/g, '').replace(',', '.');
+    const parsed = Number(cleaned);
+    const safe = !Number.isNaN(parsed) && parsed > 0 ? clampAmount(parsed) : investAmount;
+    setInvestAmount(safe);
+    setInvestAmountInput(String(safe));
+  };
+
+  const handleInvestSliderChange = (val: number) => {
+    setInvestAmount(val);
+    setInvestAmountInput(String(val));
+  };
 
   // Math for loan
   const loanMonthly = calculateMonthlyPayment(principal, rate, termMonths);
@@ -65,12 +94,12 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
   const loanTotalCost = calculateTotalRepayment(loanMonthly, termMonths);
   const schedule = generateAmortizationSchedule(principal, rate, termMonths);
 
-  // Math for investor (0 % commission SolvaPact)
+  // Math for investor (100 % direct between parties)
   const investMonthly = calculateMonthlyPayment(investAmount, investRate, investTerm);
   const investTotalInterestGross = calculateTotalInterest(investAmount, investMonthly, investTerm);
   const investNetProfit = investTotalInterestGross;
   const investTotalCashBack = investAmount + investNetProfit;
-  const investNetROI = ((investNetProfit / investAmount) * 100).toFixed(1);
+  const investNetROI = investAmount > 0 ? ((investNetProfit / investAmount) * 100).toFixed(1) : '0.0';
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs my-6 p-6 sm:p-8">
@@ -82,26 +111,15 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
             <span>Simulateur & Analyse Financière SolvaPact</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-            Évaluez vos mensualités, économies de dettes et rendements investisseurs
+            Évaluez vos mensualités de projet et vos rendements investisseurs
           </h2>
         </div>
 
-        {/* 3-Mode Selector */}
+        {/* 2-Mode Selector */}
         <div className="flex items-center p-1 bg-slate-100 rounded-xl shrink-0 gap-1 overflow-x-auto">
           <button
-            onClick={() => setCalcMode('dette')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-              calcMode === 'dette'
-                ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Banknote className="w-3.5 h-3.5 text-amber-600" />
-            <span>Restructuration Dette</span>
-          </button>
-          <button
             onClick={() => setCalcMode('financement')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
               calcMode === 'financement'
                 ? 'bg-white text-slate-900 shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
@@ -112,7 +130,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
           </button>
           <button
             onClick={() => setCalcMode('investisseur')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
               calcMode === 'investisseur'
                 ? 'bg-white text-slate-900 shadow-2xs font-bold'
                 : 'text-slate-600 hover:text-slate-900'
@@ -124,219 +142,60 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
         </div>
       </div>
 
-      {/* MODE 1: RESTRUCTURATION DE DETTE (AVANT / APRÈS) */}
-      {calcMode === 'dette' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Controls Column (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Montant total de vos dettes actuelles
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1000"
-                    max="200000"
-                    step="500"
-                    value={debtAmount}
-                    onChange={(e) => setDebtAmount(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
-                    €
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Mensualités actuelles cumulées (estimées)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="50"
-                    max="5000"
-                    step="10"
-                    value={currentMonthlyPaid}
-                    onChange={(e) => setCurrentMonthlyPaid(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
-                    € / mois
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Décote slider */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Décote visée pour règlement comptant sous seing privé
-                </label>
-                <span className="text-lg font-bold text-amber-700 tabular-nums">
-                  -{discountPct} % de décote
-                </span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="1"
-                value={discountPct}
-                onChange={(e) => setDiscountPct(Number(e.target.value))}
-                className="w-full accent-amber-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
-              />
-              <div className="flex justify-between text-[11px] text-slate-400 mt-1">
-                <span>5 % (Accord classique)</span>
-                <span>25 % (Standard contentieux)</span>
-                <span>50 % (Créance décotée)</span>
-              </div>
-            </div>
-
-            {/* Durée & Taux */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Durée de remboursement au financeur
-                </label>
-                <select
-                  value={debtRepayTerm}
-                  onChange={(e) => setDebtRepayTerm(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900"
-                >
-                  <option value={12}>12 mois (1 an)</option>
-                  <option value={24}>24 mois (2 ans)</option>
-                  <option value={36}>36 mois (3 ans)</option>
-                  <option value={48}>48 mois (4 ans)</option>
-                  <option value={60}>60 mois (5 ans)</option>
-                  <option value={84}>84 mois (7 ans)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Taux proposé au financeur (% annuel)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  max="15"
-                  value={debtInterestRate}
-                  onChange={(e) => setDebtInterestRate(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 tabular-nums"
-                />
-              </div>
-            </div>
-
-            {onOpenDepositWithParams && (
-              <button
-                onClick={() =>
-                  onOpenDepositWithParams('dette', cashSettlementAmount, debtRepayTerm)
-                }
-                className="w-full py-3.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-              >
-                <span>Déposer ce dossier de rachat ({formatEuro(cashSettlementAmount)})</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Results Comparison Column (5 cols) */}
-          <div className="lg:col-span-5 bg-gradient-to-br from-amber-50/70 via-slate-50 to-emerald-50/70 border border-amber-200/80 rounded-2xl p-6 space-y-6">
-            <div>
-              <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider block mb-1">
-                Bilan de restructuration SolvaPact
-              </span>
-              <p className="text-3xl font-extrabold text-emerald-800 tabular-nums">
-                +{formatEuro(monthlySavings)}{' '}
-                <span className="text-xs font-normal text-slate-600">/ mois économisés</span>
-              </p>
-              <p className="text-xs text-slate-600 mt-1">
-                Gain direct de pouvoir d'achat dans votre budget mensuel.
-              </p>
-            </div>
-
-            {/* Comparatif Avant / Après */}
-            <div className="space-y-3 pt-2">
-              <div className="p-3.5 rounded-xl bg-white/90 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                    Avant SolvaPact
-                  </span>
-                  <span className="text-sm font-bold text-slate-700">Dettes dispersées</span>
-                </div>
-                <span className="text-base font-bold font-mono text-slate-900">
-                  {formatEuro(currentMonthlyPaid)} / mois
-                </span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-emerald-700 block">
-                    Après accord SolvaPact
-                  </span>
-                  <span className="text-sm font-bold text-emerald-950">1 Mensualité unique</span>
-                </div>
-                <span className="text-base font-bold font-mono text-emerald-700">
-                  {formatEuro(debtNewMonthly)} / mois
-                </span>
-              </div>
-            </div>
-
-            {/* Capital effacé */}
-            <div className="p-4 rounded-xl bg-white border border-amber-200/70 text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600">Capital initial effacé :</span>
-                <span className="font-mono font-bold text-emerald-700">
-                  -{formatEuro(debtorSavingsCapital)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-2">
-                <span className="text-slate-600">Montant net racheté :</span>
-                <span className="font-mono font-bold text-slate-900">
-                  {formatEuro(cashSettlementAmount)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-2">
-                <span className="text-slate-600">Commission sur l'accord :</span>
-                <span className="font-mono font-bold text-emerald-700">0 % (0 €)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODE 2: BESOIN D'EMPRUNT & FINANCEMENT */}
+      {/* MODE 1: BESOIN D'EMPRUNT & FINANCEMENT */}
       {calcMode === 'financement' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-7 space-y-6">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+                <label
+                  htmlFor="sim-principal-exact"
+                  className="text-xs font-bold text-slate-700 uppercase tracking-wider"
+                >
                   Montant recherché (Capital)
                 </label>
-                <span className="text-lg font-bold text-slate-900 tabular-nums">
-                  {formatEuro(principal)}
-                </span>
+                <div className="flex items-center gap-3 ml-auto">
+                  <div className="relative">
+                    <input
+                      id="sim-principal-exact"
+                      type="number"
+                      min={100}
+                      max={1000000}
+                      step="1"
+                      inputMode="numeric"
+                      aria-label="Montant exact recherché en euros"
+                      value={principalInput}
+                      onChange={(e) => handlePrincipalInputChange(e.target.value)}
+                      onBlur={handlePrincipalInputBlur}
+                      className="w-32 sm:w-36 pl-3 pr-7 py-1.5 text-sm font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 text-right tabular-nums"
+                    />
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
+                      €
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base sm:text-lg font-bold text-slate-900 tabular-nums block leading-tight">
+                      {formatEuro(principal)}
+                    </span>
+                    <span className="text-[11px] font-medium text-orange-700 tabular-nums">
+                      {formatAriaryApprox(principal)}
+                    </span>
+                  </div>
+                </div>
               </div>
               <input
                 type="range"
                 min="1000"
                 max="100000"
                 step="500"
-                value={principal}
-                onChange={(e) => setPrincipal(Number(e.target.value))}
+                value={Math.min(100000, Math.max(1000, principal))}
+                onChange={(e) => handlePrincipalSliderChange(Number(e.target.value))}
                 className="w-full accent-slate-900 h-2 bg-slate-200 rounded-lg cursor-pointer"
               />
               <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                 <span>1 000 €</span>
                 <span>50 000 €</span>
-                <span>100 000 €</span>
+                <span>100 000 € (ou saisie libre jusqu'à 1 M€)</span>
               </div>
             </div>
 
@@ -392,7 +251,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
 
             {onOpenDepositWithParams && (
               <button
-                onClick={() => onOpenDepositWithParams('financement', principal, termMonths)}
+                onClick={() => onOpenDepositWithParams('investissement', principal, termMonths)}
                 className="w-full py-3.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <span>Déposer un dossier avec ces paramètres</span>
@@ -404,15 +263,15 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
             <button
               type="button"
               onClick={() => setShowSchedule(!showSchedule)}
-              className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 pt-2"
+              className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 pt-2 cursor-pointer"
             >
               {showSchedule ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               <span>{showSchedule ? 'Masquer' : 'Afficher'} l'échéancier d'amortissement détaillé</span>
             </button>
 
             {showSchedule && (
-              <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl text-xs">
-                <table className="w-full text-left">
+              <div className="max-h-60 overflow-auto thin-scrollbar border border-slate-200 rounded-xl text-xs">
+                <table className="w-full min-w-[480px] text-left">
                   <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase sticky top-0 border-b border-slate-200">
                     <tr>
                       <th className="py-2 px-3">Mois</th>
@@ -446,28 +305,37 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
               <p className="text-3xl font-extrabold text-slate-900 tabular-nums">
                 {formatEuro(loanMonthly)} <span className="text-sm font-normal text-slate-500">/ mois</span>
               </p>
+              <p className="text-xs font-semibold text-orange-700 tabular-nums mt-0.5">
+                {formatAriaryApprox(loanMonthly)} / mois
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-200 text-xs">
               <div>
                 <span className="text-slate-500 block">Intérêts totaux reversés</span>
-                <span className="text-base font-bold text-emerald-700 tabular-nums">
+                <span className="text-base font-bold text-emerald-700 tabular-nums block">
                   +{formatEuro(loanTotalInterest)}
+                </span>
+                <span className="text-[11px] text-slate-500 tabular-nums">
+                  +{formatAriaryApprox(loanTotalInterest)}
                 </span>
               </div>
 
               <div>
                 <span className="text-slate-500 block">Coût total remboursé</span>
-                <span className="text-base font-bold text-slate-900 tabular-nums">
+                <span className="text-base font-bold text-slate-900 tabular-nums block">
                   {formatEuro(loanTotalCost)}
+                </span>
+                <span className="text-[11px] text-slate-500 tabular-nums">
+                  {formatAriaryApprox(loanTotalCost)}
                 </span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs">
               <div className="flex items-center justify-between font-semibold text-emerald-950">
-                <span>Commission sur le capital :</span>
-                <span className="tabular-nums font-bold">0 % (0 €)</span>
+                <span>Mode d'accord entre membres :</span>
+                <span className="font-bold">100 % net · Accord direct</span>
               </div>
               <p className="text-[11px] text-emerald-800 mt-1">
                 100 % net perçu par l'emprunteur ({formatEuro(principal)}). Seuls 29,99 € sont réglés à la publication du dossier.
@@ -482,27 +350,55 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-7 space-y-6">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+                <label
+                  htmlFor="sim-invest-exact"
+                  className="text-xs font-bold text-slate-700 uppercase tracking-wider"
+                >
                   Montant à placer / financer
                 </label>
-                <span className="text-lg font-bold text-indigo-900 tabular-nums">
-                  {formatEuro(investAmount)}
-                </span>
+                <div className="flex items-center gap-3 ml-auto">
+                  <div className="relative">
+                    <input
+                      id="sim-invest-exact"
+                      type="number"
+                      min={100}
+                      max={1000000}
+                      step="1"
+                      inputMode="numeric"
+                      aria-label="Montant exact à placer en euros"
+                      value={investAmountInput}
+                      onChange={(e) => handleInvestInputChange(e.target.value)}
+                      onBlur={handleInvestInputBlur}
+                      className="w-32 sm:w-36 pl-3 pr-7 py-1.5 text-sm font-bold text-indigo-950 bg-indigo-50/40 border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 text-right tabular-nums"
+                    />
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-indigo-600">
+                      €
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base sm:text-lg font-bold text-indigo-900 tabular-nums block leading-tight">
+                      {formatEuro(investAmount)}
+                    </span>
+                    <span className="text-[11px] font-medium text-orange-700 tabular-nums">
+                      {formatAriaryApprox(investAmount)}
+                    </span>
+                  </div>
+                </div>
               </div>
               <input
                 type="range"
                 min="1000"
                 max="50000"
                 step="500"
-                value={investAmount}
-                onChange={(e) => setInvestAmount(Number(e.target.value))}
+                value={Math.min(50000, Math.max(1000, investAmount))}
+                onChange={(e) => handleInvestSliderChange(Number(e.target.value))}
                 className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
               />
               <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                 <span>1 000 €</span>
                 <span>25 000 €</span>
-                <span>50 000 €</span>
+                <span>50 000 € (ou saisie libre jusqu'à 1 M€)</span>
               </div>
             </div>
 
@@ -562,7 +458,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 Garanties et Sûretés Réelles
               </p>
               <p className="text-[11px] text-indigo-900 leading-relaxed">
-                Chaque engagement donne lieu à une reconnaissance de dette signée sous seing privé (Article 1892 du Code Civil) assortie le cas échéant de sûretés (caution solidaire, nantissement ou engagement de cession sur salaire).
+                Chaque engagement donne lieu à un contrat de prêt ou pacte d'associés signé sous seing privé (Articles 1892 et 2044 du Code Civil) assorti le cas échéant de sûretés (caution solidaire, nantissement ou engagement de cession sur salaire).
               </p>
             </div>
           </div>
@@ -576,23 +472,32 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 +{formatEuro(investMonthly)}{' '}
                 <span className="text-xs font-normal text-slate-500">/ mois</span>
               </p>
+              <p className="text-xs font-semibold text-orange-700 tabular-nums mt-0.5">
+                +{formatAriaryApprox(investMonthly)} / mois
+              </p>
               <p className="text-xs text-slate-600 mt-1">
-                Versé directement sur votre compte bancaire chaque mois.
+                Versé directement entre membres (MVola, Orange Money, virement).
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 py-4 border-y border-indigo-200/70 text-xs">
               <div>
                 <span className="text-slate-500 block">Intérêts bruts totaux</span>
-                <span className="text-base font-bold text-emerald-700 tabular-nums">
+                <span className="text-base font-bold text-emerald-700 tabular-nums block">
                   +{formatEuro(investTotalInterestGross)}
+                </span>
+                <span className="text-[11px] text-slate-500 tabular-nums">
+                  +{formatAriaryApprox(investTotalInterestGross)}
                 </span>
               </div>
 
               <div>
-                <span className="text-slate-500 block">Gain net (0 % commission)</span>
-                <span className="text-base font-bold text-indigo-900 tabular-nums">
+                <span className="text-slate-500 block">Gain net (100 % direct)</span>
+                <span className="text-base font-bold text-indigo-900 tabular-nums block">
                   +{formatEuro(investNetProfit)}
+                </span>
+                <span className="text-[11px] text-slate-500 tabular-nums">
+                  +{formatAriaryApprox(investNetProfit)}
                 </span>
               </div>
             </div>

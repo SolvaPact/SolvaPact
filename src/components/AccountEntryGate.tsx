@@ -161,7 +161,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
               SolvaPact
             </span>
             <span className="text-[10px] text-slate-400">
-              Financement Direct · Rachat de Dettes · Accords Privés
+              Investissement Direct · Projets · Accords Privés
             </span>
           </div>
         </div>
@@ -185,7 +185,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                 Créez votre compte gratuit pour accéder à SolvaPact
               </h1>
               <p className="text-sm text-slate-300 leading-relaxed">
-                SolvaPact met en relation des particuliers, entrepreneurs et investisseurs pour financer un projet ou apurer une dette sous seing privé. L'inscription est gratuite : vous ne payez que lorsque vous décidez de publier un dossier.
+                SolvaPact met en relation des particuliers, entrepreneurs et investisseurs pour financer un projet ou structurer un apport en direct sous seing privé. L'inscription est gratuite : vous ne payez que lorsque vous décidez de publier un dossier.
               </p>
             </div>
 
@@ -212,9 +212,9 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                     <Scale className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white">0 % de commission sur les fonds négociés</h3>
+                    <h3 className="font-bold text-white">Accord direct 100 % net entre les parties</h3>
                     <p className="text-slate-400 mt-0.5 leading-relaxed">
-                      Aucun prélèvement sur le capital financé ou les accords signés. Tous les contrats respectent les articles 1892 et 2044 du Code Civil.
+                      Aucun intermédiaire bancaire sur le capital financé ou les accords signés. Tous les contrats respectent les articles 1892 et 2044 du Code Civil.
                     </p>
                   </div>
                 </div>
@@ -300,7 +300,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                         2. Négociation et virements en dehors du site
                       </p>
                       <p className="mt-1">
-                        SolvaPact agit exclusivement comme plateforme de mise en relation. Les échanges de négociation (par Gmail, e-mail ou téléphone) ainsi que tous les virements bancaires, paiements, rachats de dette et remboursements se font directement entre les utilisateurs en dehors du site, sous leur propre responsabilité.
+                        SolvaPact agit exclusivement comme plateforme de mise en relation. Les échanges de négociation (par Gmail, e-mail ou téléphone) ainsi que tous les virements bancaires, apports en capital, financements et remboursements se font directement entre les utilisateurs en dehors du site, sous leur propre responsabilité.
                       </p>
                     </div>
 
@@ -309,7 +309,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                         3. Tarifs & Compte Fidélité
                       </p>
                       <p className="mt-1">
-                        La création de compte et la préparation des dossiers sont gratuites. Seule la publication d'un dossier est facturée <strong>29,99 €</strong> (hors réduction fidélité Bronze -10 %, Silver -17 %, Gold -23 %, Diamond -45 % et 1 dossier offert tous les 5), sans aucune commission sur les sommes négociées.
+                        La création de compte et la préparation des dossiers sont gratuites. Seule la publication d'un dossier est facturée <strong>29,99 €</strong> (hors réduction fidélité Bronze -10 %, Silver -17 %, Gold -23 %, Diamond -45 % et 1 dossier offert tous les 5), avec transfert direct des fonds hors site entre les parties.
                       </p>
                     </div>
                   </div>
@@ -498,7 +498,7 @@ export const AccountEntryGate: React.FC<AccountEntryGateProps> = ({ onAuthSucces
                               : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
                           }`}
                         >
-                          Déposer un dossier (Dette / Projet)
+                          Déposer un dossier (Projet / Besoin)
                         </button>
                         <button
                           type="button"

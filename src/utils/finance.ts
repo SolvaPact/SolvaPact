@@ -13,19 +13,16 @@ export function isOwnerGoldEmail(email?: string | null): boolean {
 
 export function canViewDailyReport(user?: User | null): boolean {
   if (!user) return false;
+  if (isOwnerGoldEmail(user.email)) return true;
   const fullName = (user.name || `${user.firstName || ''} ${user.lastName || ''}`)
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase();
-  return fullName === 'hugo laumonier';
+  return fullName === 'hugo laumonier' && isOwnerGoldEmail(user.email);
 }
 
 export function applyOwnerGoldStatus(user: User): User {
-  const fullName = (user.name || `${user.firstName || ''} ${user.lastName || ''}`)
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-  if (isOwnerGoldEmail(user.email) || fullName === 'hugo laumonier') {
+  if (isOwnerGoldEmail(user.email)) {
     return {
       ...user,
       loyaltyActive: true,
@@ -259,6 +256,13 @@ export function formatEuro(amount: number): string {
     minimumFractionDigits: hasCents ? 2 : 0,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+export const EUR_TO_MGA_RATE = 4950;
+
+export function formatAriaryApprox(euroAmount: number): string {
+  const mga = Math.round((euroAmount * EUR_TO_MGA_RATE) / 1000) * 1000;
+  return `~${new Intl.NumberFormat('fr-FR').format(mga)} Ar`;
 }
 
 export function formatPct(rate: number): string {

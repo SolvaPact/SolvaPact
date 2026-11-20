@@ -122,7 +122,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ invoice, onClose }) 
                     <div className="text-[11px] text-slate-500 mt-0.5">
                       {invoice.type === 'loyalty'
                         ? 'Activation à vie du Compte Fidélité (+10 EXP par dossier, paliers -10 %, -17 %, -23 % et Diamond -45 % + 1 dossier offert / 5)'
-                        : 'Publication de dossier sur SolvaPact (0 % de commission sur les fonds négociés)'}
+                        : 'Publication de dossier sur SolvaPact (mise en relation directe entre membres)'}
                     </div>
                   </td>
                   <td className="py-4 px-4 text-center font-mono text-slate-600">
@@ -164,7 +164,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ invoice, onClose }) 
               <span>Mentions légales & Conformité</span>
             </div>
             <p>
-              Facture acquittée pour prestation numérique SolvaPact. Aucune commission supplémentaire n'est prélevée sur les montants financés ou rachetés entre utilisateurs. Protocole conforme aux articles 1892 et 2044 du Code Civil.
+              Facture acquittée pour prestation numérique SolvaPact. SolvaPact agit exclusivement comme outil de mise en relation ; les fonds convenus circulent directement hors site entre les parties. Protocole conforme aux articles 1892 et 2044 du Code Civil.
             </p>
           </div>
         </div>

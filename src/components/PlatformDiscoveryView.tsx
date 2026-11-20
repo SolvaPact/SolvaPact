@@ -12,7 +12,6 @@ import {
   ArrowDown,
   ArrowRight,
   Award,
-  Banknote,
   Bot,
   CheckCircle2,
   Compass,
@@ -33,6 +32,7 @@ interface PlatformDiscoveryViewProps {
   currentUser: User | null;
   onExploreMarketplace: () => void;
   onOpenDeposit?: () => void;
+  onOpenContactInvestors?: () => void;
   onOpenLoyalty?: () => void;
   onOpenHelp?: () => void;
   isOnboarding?: boolean;
@@ -42,6 +42,7 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
   currentUser,
   onExploreMarketplace,
   onOpenDeposit,
+  onOpenContactInvestors,
   onOpenLoyalty,
   onOpenHelp,
   isOnboarding = false,
@@ -187,9 +188,9 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
           </h1>
 
           <p className="text-sm sm:text-base text-blue-100/85 leading-relaxed max-w-3xl">
-            SolvaPact est une plateforme de mise en relation directe entre personnes ayant un projet à financer ou une dette à régler et des investisseurs privés.{' '}
+            SolvaPact est une plateforme de mise en relation directe entre porteurs de projets ou de besoins spécifiques et investisseurs privés.{' '}
             <strong className="text-white">
-              Aucune banque intermédiaire, aucun abonnement mensuel et 0 % de commission
+              Aucune banque intermédiaire, aucun abonnement mensuel et un accord direct 100 % net
             </strong>{' '}
             sur les sommes négociées entre les parties.
           </p>
@@ -213,35 +214,36 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
                   Préparer un dossier gratuitement
                 </button>
               )}
+              {onOpenContactInvestors && (
+                <button
+                  type="button"
+                  onClick={onOpenContactInvestors}
+                  className="px-5 py-3 rounded-xl bg-emerald-600/85 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm border border-emerald-400/30 transition-colors cursor-pointer"
+                >
+                  Prendre contact (Investisseurs)
+                </button>
+              )}
             </div>
           )}
         </section>
 
-        {/* Section 1: 3 Dossier Categories */}
+        {/* Section 1: 2 Dossier Categories */}
         <section className="space-y-4">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
               1. À quoi sert la plateforme ?
             </span>
             <h2 className="text-2xl font-extrabold text-white tracking-tight mt-1">
-              Trois espaces dédiés selon votre situation
+              Deux espaces dédiés selon votre situation
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-slate-950/55 backdrop-blur-md rounded-2xl border border-blue-300/20 p-6 space-y-2.5">
-              <Banknote className="w-6 h-6 text-amber-300" />
-              <h3 className="text-base font-bold text-white">Dettes à régler</h3>
-              <p className="text-xs text-blue-100/80 leading-relaxed">
-                Déposez vos créances ou crédits pour obtenir un rachat comptant avec décote amiable ou un rééchelonnement direct en une seule mensualité.
-              </p>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="bg-slate-950/55 backdrop-blur-md rounded-2xl border border-blue-300/20 p-6 space-y-2.5">
               <PiggyBank className="w-6 h-6 text-emerald-300" />
               <h3 className="text-base font-bold text-white">Investissements &amp; Projets</h3>
               <p className="text-xs text-blue-100/80 leading-relaxed">
-                Entrepreneurs, artisans ou particuliers présentent leur besoin de financement et négocient directement le taux d'intérêt et les garanties avec des investisseurs.
+                Entrepreneurs, artisans ou porteurs de projets présentent leur besoin de financement et négocient directement les parts sociales, le partage des revenus ou le taux d'intérêt avec des investisseurs.
               </p>
             </div>
 
@@ -249,7 +251,7 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
               <FolderOpen className="w-6 h-6 text-cyan-300" />
               <h3 className="text-base font-bold text-white">Autres sujets</h3>
               <p className="text-xs text-blue-100/80 leading-relaxed">
-                Prêts solidaires, restructurations amiables spécifiques, accords transactionnels ou besoins urgents hors circuit bancaire classique.
+                Prêts solidaires, besoins ponctuels de trésorerie, accords transactionnels ou projets particuliers hors circuit bancaire classique.
               </p>
             </div>
           </div>
@@ -304,10 +306,10 @@ export const PlatformDiscoveryView: React.FC<PlatformDiscoveryViewProps> = ({
               <div className="space-y-1 text-xs">
                 <span className="font-bold text-emerald-300 uppercase">Étape 03 · Mise en relation directe</span>
                 <h3 className="text-sm font-bold text-white">
-                  Contact direct par Gmail / tél, virements en dehors du site
+                  Annuaire « Prendre contact », Gmail / tél &amp; virements hors site
                 </h3>
                 <p className="text-blue-100/80 leading-relaxed">
-                  Cliquez sur le bouton « Négocier » d'un dossier pour afficher les coordonnées du créateur (e-mail, Gmail, téléphone, prénom et nom) et échanger directement avec lui. Les virements se font ensuite entre vous en dehors du site.
+                  Consultez la liste des investisseurs volontaires (ayant signé la lettre de consentement) dans l&apos;onglet « Prendre contact » pour leur envoyer votre dossier directement, ou cliquez sur « Négocier » sur n&apos;importe quel dossier publié. Les transferts se font ensuite entre vous hors site.
                 </p>
               </div>
             </div>

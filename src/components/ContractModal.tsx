@@ -1,7 +1,8 @@
 import React from 'react';
 import { NegotiationThread } from '../types';
-import { formatEuro, formatPct, generateAmortizationSchedule } from '../utils/finance';
-import { X, Printer, ShieldCheck, CheckCircle2, Download, Scale } from 'lucide-react';
+import { formatAriaryApprox, formatEuro, formatPct, generateAmortizationSchedule } from '../utils/finance';
+import { useModalEscape } from '../utils/useModalEscape';
+import { X, Printer, CheckCircle2 } from 'lucide-react';
 
 interface ContractModalProps {
   thread: NegotiationThread | null;
@@ -9,10 +10,11 @@ interface ContractModalProps {
 }
 
 export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose }) => {
+  useModalEscape(Boolean(thread), onClose);
+
   if (!thread) return null;
 
   const offer = thread.currentOffer;
-  const isDebt = thread.dossierType === 'dette';
   const schedule = generateAmortizationSchedule(
     offer.proposedAmount,
     offer.proposedInterestRate,
@@ -57,13 +59,13 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
           {/* Header Document */}
           <div className="text-center space-y-2 border-b border-slate-300 pb-6">
             <p className="text-[11px] tracking-widest uppercase font-mono text-slate-500">
-              RÉPUBLIQUE FRANÇAISE · ACTE SOUS SEING PRIVÉ
+              SOLVAPACT MADAGASCAR · ACTE SOUS SEING PRIVÉ
             </p>
             <h1 className="text-xl sm:text-2xl font-bold font-serif text-slate-900 tracking-tight">
               PROTOCOLE TRANSACTIONNEL & CONTRAT DE FINANCEMENT P2P
             </h1>
             <p className="text-xs text-slate-600 font-sans">
-              Établi en application des articles 1892 et suivants, 1905 et 2044 du Code Civil
+              Convention établie sous seing privé entre les parties (force obligatoire des accords civils et commerciaux)
             </p>
             <p className="text-[11px] font-mono text-slate-400">
               RÉFÉRENCE UNIQUE D'ACCORD : SP-{thread.id.toUpperCase()}-2026
@@ -98,7 +100,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
                 Article 1 — Objet de la présente convention
               </h3>
               <p>
-                Le présent protocole a pour objet d'arrêter de manière ferme et irrévocable les conditions de mise à disposition des fonds ou de reprise de la créance visée dans le dossier ci-dessus référencé, conclue directement entre les parties sans intermédiation bancaire classique.
+                Le présent protocole a pour objet d'arrêter de manière ferme et irrévocable les conditions de mise à disposition des fonds pour le projet ou besoin visé dans le dossier ci-dessus référencé, conclu directement entre les parties sans intermédiation bancaire classique.
               </p>
             </section>
 
@@ -107,8 +109,11 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
                 Article 2 — Montant principal & Conditions financières
               </h3>
               <p>
-                Le montant principal accordé et versé par l'Investisseur s'élève à la somme ferme de{' '}
+                Le montant principal accordé et versé par l&apos;Investisseur s&apos;élève à la somme ferme de{' '}
                 <strong className="font-mono tabular-nums">{formatEuro(offer.proposedAmount)}</strong>{' '}
+                <span className="font-sans text-xs text-slate-500">
+                  (soit environ {formatAriaryApprox(offer.proposedAmount)})
+                </span>{' '}
                 (Toutes Taxes Comprises ou net de frais).
               </p>
               <ul className="list-disc pl-5 space-y-1 font-sans text-xs mt-2">
@@ -124,15 +129,10 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
                   <strong>Mensualité constante d'amortissement :</strong>{' '}
                   <span className="font-mono tabular-nums">{formatEuro(offer.proposedMonthlyPayment)} / mois</span>
                 </li>
-                {offer.discountPercentage && (
-                  <li>
-                    <strong>Décote de règlement convenue :</strong> {offer.discountPercentage} % sur le montant nominal
-                  </li>
-                )}
                 <li>
-                  <strong>Commission SolvaPact sur la transaction :</strong>{' '}
-                  <span className="font-mono tabular-nums text-emerald-800 font-bold">0 % (0 €)</span>{' '}
-                  — 100 % du capital accordé est net entre les parties.
+                  <strong>Mode de règlement hors site :</strong>{' '}
+                  <span className="font-sans text-emerald-800 font-bold">Accord direct sans intermédiaire</span>{' '}
+                  — 100 % du capital convenu circule librement entre les parties.
                 </li>
               </ul>
             </section>
@@ -151,19 +151,19 @@ export const ContractModal: React.FC<ContractModalProps> = ({ thread, onClose })
 
             <section className="space-y-1.5">
               <h3 className="font-bold font-sans text-xs uppercase tracking-wider text-slate-900">
-                Article 4 — Modalités de règlement & Déchéance du terme
+                Article 4 — Modalités de règlement &amp; Déchéance du terme
               </h3>
               <p>
-                Le versement du capital et les échéances mensuelles s'effectuent directement entre les parties, en dehors de la plateforme SolvaPact (virement bancaire ou moyen convenu entre elles), le 5 de chaque mois civil. En cas de défaut de paiement d'une seule échéance non régularisée dans un délai de quinze (15) jours suivant mise en demeure restée infructueuse, la totalité du solde restant dû deviendra immédiatement et de plein droit exigible.
+                Le versement du capital et les échéances mensuelles s&apos;effectuent directement entre les parties, en dehors de la plateforme SolvaPact (MVola, Orange Money, Airtel Money ou virement bancaire BNI / BOA / SEPA convenu entre elles), le 5 de chaque mois civil. En cas de défaut de paiement d&apos;une seule échéance non régularisée dans un délai de quinze (15) jours suivant mise en demeure restée infructueuse, la totalité du solde restant dû deviendra immédiatement et de plein droit exigible.
               </p>
             </section>
 
             <section className="space-y-2">
               <h3 className="font-bold font-sans text-xs uppercase tracking-wider text-slate-900">
-                Extrait de l'échéancier des 6 premiers mois
+                Extrait de l&apos;échéancier des 6 premiers mois
               </h3>
-              <div className="border border-slate-200 rounded-lg overflow-hidden font-sans text-xs">
-                <table className="w-full text-left">
+              <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto thin-scrollbar font-sans text-xs">
+                <table className="w-full min-w-[500px] text-left">
                   <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
                     <tr>
                       <th className="py-1.5 px-3">Échéance</th>

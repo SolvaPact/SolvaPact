@@ -15,7 +15,7 @@ function cleanSolvaSolutionText(text: string): string {
     .trim();
 }
 
-type DossierTabType = 'dette' | 'investissement' | 'autre';
+type DossierTabType = 'investissement' | 'autre';
 
 const VALID_CATEGORIES = [
   'Éducation & Formation',
@@ -80,39 +80,31 @@ function inferDossierTab(rawText: string, fallbackType?: string): DossierTabType
     'batiment',
     'travaux',
     'agrandi',
+    'parts sociales',
+    'capital',
   ].filter((k) => lower.includes(k)).length;
 
-  const debtScore = [
-    'dette',
-    'créanc',
-    'creanc',
-    'rachat de crédit',
-    'rachat crédit',
-    'rachat de credit',
-    'regroupement',
-    'découvert',
-    'decouvert',
-    'huissier',
-    'contentieux',
-    'impayé',
-    'impaye',
-    'apurer',
-    'solder',
-    'rembourser un crédit',
-    'urssaf',
-    'fisc',
-    'retard de paiement',
-    'décote',
-    'decote',
+  const otherScore = [
+    'solidaire',
+    'litige',
+    'urgence',
+    'familial',
+    'santé',
+    'sante',
+    'déménagement',
+    'demenagement',
+    'trésorerie',
+    'tresorerie',
+    'besoin ponctuel',
+    'autre sujet',
   ].filter((k) => lower.includes(k)).length;
 
-  if (investScore > debtScore && investScore > 0) return 'investissement';
-  if (debtScore > investScore && debtScore > 0) return 'dette';
-  if (lower.includes('solidaire') || lower.includes('litige')) return 'autre';
-  if (fallbackType === 'dette' || fallbackType === 'investissement' || fallbackType === 'autre') {
+  if (otherScore > investScore && otherScore > 0) return 'autre';
+  if (investScore > 0) return 'investissement';
+  if (fallbackType === 'investissement' || fallbackType === 'autre') {
     return fallbackType;
   }
-  return 'dette';
+  return 'investissement';
 }
 
 function normalizeCategory(rawCat: string, promptAndText: string): string {
@@ -181,10 +173,11 @@ export default async function handler(req: any, res: any) {
     const parsedBody =
       typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
 
-    const { step, userPrompt, dossierContext, userName } = parsedBody as {
+    const { step, userPrompt, dossierContext, userName, attachedPdf } = parsedBody as {
       step?: number;
       userPrompt?: string;
       userName?: string;
+      attachedPdf?: { name?: string; mimeType?: string; dataBase64?: string };
       dossierContext?: {
         type?: string;
         category?: string;
@@ -305,17 +298,17 @@ export default async function handler(req: any, res: any) {
 
     const stepFormat =
       stepNumber === 1
-        ? `Analyse la demande du client. S'il s'agit d'un financement de projet, d'une construction, d'achat de matériel ou de création (ex: école, commerce, entreprise), le bon onglet est obligatoirement investissement (et non dette). S'il s'agit de rembourser ou racheter des dettes/crédits/découverts, le bon onglet est dette.
+        ? `Analyse la demande du client. S'il s'agit d'un financement de projet, d'une construction, d'achat de matériel, de développement ou de création (ex: école, commerce, entreprise), le bon onglet est investissement. S'il s'agit d'un besoin ponctuel, familial, associatif ou atypique hors investissement classique, le bon onglet est autre.
 Retourne OBLIGATOIREMENT ces 5 balises exactes (chacune remplie avec soin) :
-[[ONGLET]]investissement ou dette ou autre[[/ONGLET]]
+[[ONGLET]]investissement ou autre[[/ONGLET]]
 [[CATEGORIE]]une de ces valeurs exactes : Éducation & Formation | Immobilier & Construction | Artisanat & BTP | Commerce de bouche | Particulier / Refinancement | Profession libérale & Freelance | Automobile & Logistique | Autre domaine[[/CATEGORIE]]
 [[TITRE]]un titre clair, sérieux et percutant de 6 à 14 mots[[/TITRE]]
 [[RESUME]]un résumé d'accroche complet et rassurant de 2 phrases bien construites donnant envie à un investisseur d'ouvrir le dossier[[/RESUME]]
-[[CONSEIL]]une phrase brève informant le client (mentionne s'il y a eu réorientation vers Investissement/Dette et rappelle de vérifier le montant éventuel à l'étape 2)[[/CONSEIL]]`
+[[CONSEIL]]une phrase brève informant le client (mentionne s'il y a eu réorientation vers Investissement ou Autre sujet et rappelle de vérifier le montant éventuel à l'étape 2)[[/CONSEIL]]`
         : stepNumber === 2
         ? `Résume brièvement la demande du client et propose la meilleure structure pour l'investisseur :
 - Si c'est un projet d'entreprise/école/commerce où le client propose des parts sociales, un pourcentage du capital ou des bénéfices SANS remboursement mensuel, choisis MODE=parts_sociales ou redevance_ca avec PARTS (ex: 15) et MENSUALITE=0.
-- Si c'est un prêt ou un rachat de dette avec échéances mensuelles, choisis MODE=remboursement avec DUREE (12, 24, 36, 48, 60, 72, 84 ou 120), TAUX et MENSUALITE.
+- Si c'est un prêt ou financement de projet avec échéances mensuelles, choisis MODE=remboursement avec DUREE (12, 24, 36, 48, 60, 72, 84 ou 120), TAUX et MENSUALITE.
 - Si c'est une formule mixte (remboursement + parts), choisis MODE=hybride.
 Ne cite JAMAIS de salaire ou de charges si Revenus=NON RENSEIGNÉS. Ne dis JAMAIS "je reste à votre disposition pour finaliser", invite plutôt à cliquer sur "OK, ça me va" juste en dessous si cela convient.
 Retourne OBLIGATOIREMENT ces balises exactes :
@@ -338,7 +331,7 @@ Retourne OBLIGATOIREMENT ces balises exactes :
 Règle absolue : Rédige en français naturel, clair et fluide. N'utilise JAMAIS de symboles Markdown (#, *, **, _, \`) ni de listes à astérisques. N'invente JAMAIS de salaire, de revenus, de charges ou de faux chiffres non donnés par le client.
 
 Client : ${typeof userName === 'string' && userName.trim() ? userName.trim().slice(0, 60) : 'Membre SolvaPact'}
-Contexte actuel : Onglet sélectionné=${ctx.type || 'dette'}, Sous-domaine=${ctx.category || 'Particulier & Pro'}, Montant actuel=${ctx.amountRequested || 10000} €, Durée actuelle=${ctx.termMonths || 36} mois, ${financeContextLine}${detailNotes ? `, Précisions dossier=[${detailNotes}]` : ''}, Pièces=${attachedList}.
+Contexte actuel : Onglet sélectionné=${ctx.type === 'autre' ? 'autre' : 'investissement'}, Sous-domaine=${ctx.category || 'Particulier & Pro'}, Montant actuel=${ctx.amountRequested || 10000} €, Durée actuelle=${ctx.termMonths || 36} mois, ${financeContextLine}${detailNotes ? `, Précisions dossier=[${detailNotes}]` : ''}, Pièces=${attachedList}.
 
 Message du client :
 "${userPrompt.trim().slice(0, 2000)}"
@@ -364,6 +357,28 @@ ${stepFormat}`;
     let response;
     let lastError: any = null;
 
+    const hasPdfData =
+      attachedPdf &&
+      typeof attachedPdf.dataBase64 === 'string' &&
+      attachedPdf.dataBase64.length > 20 &&
+      attachedPdf.dataBase64.length <= 5500000;
+
+    const multimodalContents = hasPdfData
+      ? {
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: attachedPdf!.dataBase64!,
+              },
+            },
+            {
+              text: `${draftPrompt}\n\nDocument PDF joint à analyser (${attachedPdf!.name || 'document.pdf'}) : extrais uniquement les faits réels qui y figurent pour enrichir ta rédaction.`,
+            },
+          ],
+        }
+      : draftPrompt;
+
     for (const candidate of modelAttempts) {
       try {
         const thinkingConfig =
@@ -378,13 +393,13 @@ ${stepFormat}`;
         response = await withTimeout(
           ai.models.generateContent({
             model: candidate.model,
-            contents: draftPrompt,
+            contents: multimodalContents,
             config: {
               maxOutputTokens: stepNumber === 4 ? 1400 : 1000,
               ...thinkingConfig,
             },
           }),
-          8500,
+          hasPdfData ? 12000 : 8500,
           candidate.model
         );
         cachedWorkingDraftModel = candidate.model;
@@ -406,18 +421,12 @@ ${stepFormat}`;
     const aiRecommendedType: DossierTabType | undefined =
       rawTab.includes('invest')
         ? 'investissement'
-        : rawTab.includes('dette')
-        ? 'dette'
         : rawTab.includes('autre')
         ? 'autre'
         : undefined;
 
     const deterministicType = inferDossierTab(userPrompt, ctx.type);
-    const recommendedType: DossierTabType =
-      aiRecommendedType &&
-      !(aiRecommendedType === 'dette' && deterministicType === 'investissement')
-        ? aiRecommendedType
-        : deterministicType;
+    const recommendedType: DossierTabType = aiRecommendedType || deterministicType;
 
     const rawCat = extractFlexibleTag(rawOutput, ['CATEGORIE', 'CATÉGORIE', 'DOMAINE']);
     const recommendedCategory =
@@ -467,20 +476,14 @@ ${stepFormat}`;
           const cleanSubject = userPrompt.trim().replace(/\s+/g, ' ');
           description =
             recommendedType === 'investissement'
-              ? `Demande de financement participatif direct pour concrétiser ce projet (${cleanSubject.slice(0, 140)}). Conditions et échéancier de remboursement proposés en direct à l'investisseur sans intermédiaire bancaire.`
-              : recommendedType === 'dette'
-              ? `Demande d'apurement amiable pour restructurer et solder une situation existante (${cleanSubject.slice(0, 140)}). Remboursement mensuel encadré par un protocole sous seing privé.`
-              : `Demande d'accompagnement direct sur-mesure (${cleanSubject.slice(0, 140)}) avec engagement de remboursement détaillé et justificatifs fournis.`;
+              ? `Demande de financement participatif direct pour concrétiser ce projet (${cleanSubject.slice(0, 140)}). Conditions et contrepartie proposées en direct à l'investisseur sans intermédiaire bancaire.`
+              : `Demande d'accompagnement direct sur-mesure (${cleanSubject.slice(0, 140)}) avec modalités détaillées et justificatifs fournis.`;
         }
       }
       if (!coachMessage) {
         const tabSwitched = ctx.type && recommendedType !== ctx.type;
         const tabLabel =
-          recommendedType === 'investissement'
-            ? 'Investissement'
-            : recommendedType === 'dette'
-            ? 'Dette à régler'
-            : 'Autre sujet';
+          recommendedType === 'investissement' ? 'Investissement' : 'Autre sujet';
         coachMessage = tabSwitched
           ? `J'ai réorienté votre dossier vers l'onglet ${tabLabel} (${recommendedCategory}) et rédigé votre titre ainsi que votre résumé d'accroche.`
           : `Onglet ${tabLabel} (${recommendedCategory}) confirmé : titre et résumé d'accroche rédigés dans votre dossier.`;
@@ -506,9 +509,7 @@ ${stepFormat}`;
       const wantsHybrid = rawMode.includes('hybride') || rawMode.includes('mixte');
 
       const proposedMode: 'remboursement' | 'parts_sociales' | 'redevance_ca' | 'hybride' =
-        ctx.type === 'dette'
-          ? 'remboursement'
-          : wantsHybrid
+        wantsHybrid
           ? 'hybride'
           : wantsParts
           ? 'parts_sociales'
@@ -557,8 +558,6 @@ ${stepFormat}`;
       const parsedRateNum = Number(rawRate.replace(',', '.').replace(/[^\d.]/g, ''));
       const baseRate = isNoMonthlyMode
         ? 0
-        : ctx.type === 'dette'
-        ? 5.5
         : parsedRateNum >= 1 && parsedRateNum <= 15
         ? Math.round(parsedRateNum * 10) / 10
         : Number(ctx.targetInterestRate) || 6.0;
@@ -578,7 +577,7 @@ ${stepFormat}`;
         equityPercentage: finalEquityPct,
         amountRequested: finalAmount,
         termMonths: finalDuration,
-        targetInterestRate: ctx.type === 'dette' || isNoMonthlyMode ? undefined : baseRate,
+        targetInterestRate: isNoMonthlyMode ? undefined : baseRate,
         maxMonthlyPayment: advisedBudget,
       };
 

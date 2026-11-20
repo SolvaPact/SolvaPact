@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DailyReportSummary, User } from '../types';
+import { fetchDailyReportFromFirestore } from '../services/firestoreService';
 import { formatEuro, canViewDailyReport } from '../utils/finance';
 import {
   X,
@@ -55,6 +56,7 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
     if (!currentUser?.name || !isOwner) return;
     setLoading(true);
     try {
+      const firestoreSummary = await fetchDailyReportFromFirestore(dateKey).catch(() => null);
       const res = await fetch(
         `/api/analytics/daily?date=${encodeURIComponent(dateKey)}&ownerEmail=${encodeURIComponent(
           currentUser.email || ''
@@ -67,10 +69,19 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
           emailBody: string;
           recipientEmail: string;
         };
-        setReport(data.report);
+        const merged =
+          firestoreSummary &&
+          (firestoreSummary.dossiersPosted > data.report.dossiersPosted ||
+            firestoreSummary.loyaltyAccountsCreated > data.report.loyaltyAccountsCreated ||
+            firestoreSummary.reviews.length > data.report.reviews.length)
+            ? firestoreSummary
+            : data.report;
+        setReport(merged);
         setEmailSubject(data.emailSubject);
         setEmailBody(data.emailBody);
         setRecipientEmail(data.recipientEmail);
+      } else if (firestoreSummary) {
+        setReport(firestoreSummary);
       }
     } catch (err) {
       console.error('Error loading daily report:', err);
