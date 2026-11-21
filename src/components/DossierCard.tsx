@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Dossier } from '../types';
 import { formatAriaryApprox, formatEuro, formatPct, getLoyaltyNameColorClass } from '../utils/finance';
 import { ShieldCheck, MessageSquare, Clock, FileText, Trash2, CheckCircle2, Building2 } from 'lucide-react';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 
 interface DossierCardProps {
   dossier: Dossier;
@@ -25,9 +26,9 @@ export const DossierCard: React.FC<DossierCardProps> = ({
 
   const typeLabel = isInvest ? 'Investissement' : 'Autre sujet';
 
-  const typeColor = isInvest ? 'text-emerald-700' : 'text-rose-700';
+  const typeColor = isInvest ? 'text-emerald-700' : 'text-orange-600';
 
-  const bottomStripClass = isInvest ? 'bg-emerald-600' : 'bg-rose-500';
+  const bottomStripClass = isInvest ? 'bg-emerald-600' : 'bg-orange-600';
 
   const isDiamond = Boolean(
     dossier.isDiamondPriority || dossier.applicant.loyaltyTier === 'diamond'
@@ -188,12 +189,15 @@ export const DossierCard: React.FC<DossierCardProps> = ({
           <div className="flex flex-wrap items-center gap-2 text-slate-500 text-[11px]">
             <div className="inline-flex flex-col leading-tight">
               {dossier.applicant.loyaltyTitle && (
-                <span className={`${getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)} text-[9px] uppercase tracking-wider`}>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                   {dossier.applicant.loyaltyTitle}
                 </span>
               )}
-              <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
-                {dossier.applicant.pseudonym}
+              <span className="inline-flex items-center gap-1">
+                <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
+                  {dossier.applicant.pseudonym}
+                </span>
+                <LoyaltyVerifiedBadge tier={dossier.applicant.loyaltyTier} size="xs" />
               </span>
             </div>
             <span aria-hidden="true">·</span>

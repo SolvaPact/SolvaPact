@@ -8,6 +8,7 @@ import {
   getLoyaltyNameColorClass,
   getLoyaltyStatus,
 } from '../utils/finance';
+import { getAuthHeaders } from '../firebase';
 import {
   Award,
   CheckCircle2,
@@ -20,6 +21,7 @@ import {
 import { InvoiceModal } from './InvoiceModal';
 import { CosmicStarfieldCanvas } from './CosmicStarfieldCanvas';
 import { FuturisticPaymentOverlay } from './FuturisticPaymentOverlay';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 
 interface LoyaltyModalProps {
   isOpen: boolean;
@@ -97,9 +99,10 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
     setPaymentPhase('verifying');
 
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/payments/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           kind: 'loyalty',
           userEmail: currentUser?.email,
@@ -154,18 +157,19 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                 <span>Compte Fidélité SolvaPact</span>
               </div>
               {loyalty.active && loyalty.badgeTitle && (
-                <span className={`${accountColorDark} text-[11px] uppercase tracking-wider block mb-0.5`}>
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-0.5">
                   {loyalty.badgeTitle}
                 </span>
               )}
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-white flex flex-wrap items-center gap-1.5">
                 {loyalty.active ? (
                   <>
-                    Compte de{' '}
-                    <span className={accountColorDark}>
-                      {currentUser?.name || 'Membre SolvaPact'}
-                    </span>{' '}
-                    ({loyalty.exp} EXP)
+                    <span>Compte de</span>
+                    <span className={`inline-flex items-center gap-1.5 ${accountColorDark}`}>
+                      <span>{currentUser?.name || 'Membre SolvaPact'}</span>
+                      <LoyaltyVerifiedBadge tier={loyalty.tier} size="md" />
+                    </span>
+                    <span>({loyalty.exp} EXP)</span>
                   </>
                 ) : (
                   `Activez votre Compte Fidélité à vie pour ${formatEuro(LOYALTY_ACTIVATION_PRICE)}`
@@ -191,7 +195,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                 <span className="font-bold text-white">
                   {loyalty.active
                     ? loyalty.isDiamond
-                      ? `Statut Membre Prestigieux Officiel (Diamond) : -${loyalty.discountPct} % + 1 dossier offert / 5`
+                      ? `Statut Membre Prestigieux Officiel (Diamond) : -${loyalty.discountPct} % permanents + promos jusqu'à -50 %`
                       : `Réduction active sur vos publications : -${loyalty.discountPct} %`
                     : 'Statut actuel : Compte Standard (Non activé)'}
                 </span>
@@ -218,7 +222,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   60 · Gold (6 dossiers · -23 %)
                 </span>
                 <span className={loyalty.exp >= 120 ? 'text-cyan-300 font-extrabold sm:text-right' : 'sm:text-right'}>
-                  120 · Diamond (12 dossiers · -45 %)
+                  120 · Diamond (12 dossiers · -35 %)
                 </span>
               </div>
             </div>
@@ -240,7 +244,10 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400 block leading-none">
                     Membre Vérifié
                   </span>
-                  <p className="font-bold text-orange-300 mt-0.5">Nom de compte Bronze</p>
+                  <p className="font-bold text-white mt-0.5 inline-flex items-center gap-1.5">
+                    <span>Badge vérifié Bronze</span>
+                    <LoyaltyVerifiedBadge tier="bronze" size="xs" />
+                  </p>
                 </div>
                 <p className="text-[11px] text-blue-100/80">
                   Inclus dès l'activation : -10 % sur chaque publication ({formatEuro(26.99)} au lieu de {formatEuro(BASE_PUBLICATION_PRICE)}).
@@ -262,7 +269,10 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 block leading-none">
                     Membre Fidèle
                   </span>
-                  <p className="font-bold text-slate-200 mt-0.5">Nom de compte Silver</p>
+                  <p className="font-bold text-white mt-0.5 inline-flex items-center gap-1.5">
+                    <span>Badge vérifié Silver</span>
+                    <LoyaltyVerifiedBadge tier="silver" size="xs" />
+                  </p>
                 </div>
                 <p className="text-[11px] text-blue-100/80">
                   -17 % sur chaque publication ({formatEuro(24.89)}).
@@ -284,7 +294,10 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block leading-none">
                     Membre Précieux
                   </span>
-                  <p className="font-bold text-amber-300 mt-0.5">Nom de compte Gold</p>
+                  <p className="font-bold text-white mt-0.5 inline-flex items-center gap-1.5">
+                    <span>Badge vérifié Gold</span>
+                    <LoyaltyVerifiedBadge tier="gold" size="xs" />
+                  </p>
                 </div>
                 <p className="text-[11px] text-blue-100/80">
                   -23 % permanents sur chaque publication ({formatEuro(23.09)}).
@@ -306,10 +319,13 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300 block leading-none">
                     Membre Prestigieux Officiel
                   </span>
-                  <p className="font-extrabold text-cyan-300 mt-0.5">Nom de compte Diamond</p>
+                  <p className="font-extrabold text-white mt-0.5 inline-flex items-center gap-1.5">
+                    <span>Coche bleue officielle</span>
+                    <LoyaltyVerifiedBadge tier="diamond" size="xs" />
+                  </p>
                 </div>
                 <p className="text-[11px] text-cyan-50/90 leading-relaxed">
-                  <strong>-45 %</strong> ({formatEuro(16.49)}) + <strong>1 dossier offert (0 €)</strong> tous les 5 dossiers · mise en avant &amp; support prioritaires.
+                  <strong>-35 %</strong> ({formatEuro(19.49)}) + <strong>réduction encore plus grande (jusqu&apos;à -50 %, {formatEuro(14.99)}) pendant les périodes de réduction</strong> · mise en avant &amp; support prioritaires.
                 </p>
               </div>
             </div>
@@ -346,21 +362,19 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                       loyalty.isDiamond ? 'text-cyan-200' : 'text-emerald-200'
                     }`}
                   >
-                    {loyalty.isFreePublicationNow
-                      ? 'Prochain dossier : 0 € (5e dossier Diamond offert !)'
-                      : `Tarif publication actuel : ${formatEuro(loyalty.publicationPrice)}`}
+                    {`Tarif publication actuel : ${formatEuro(loyalty.publicationPrice)}`}
                   </span>
                 </div>
 
                 {loyalty.isDiamond ? (
                   <div className="text-xs text-cyan-100 space-y-1.5 leading-relaxed">
                     <p>
-                      {loyalty.isFreePublicationNow
-                        ? 'Votre prochain dossier publié est 100 % OFFERT (0 €, sans carte bancaire requise).'
-                        : `Dossiers publiés en Diamond : ${loyalty.diamondPublicationsCount} · Prochain dossier 100 % gratuit dans ${loyalty.dossiersUntilFreePublication} publication(s).`}
+                      {loyalty.isPromoPeriod
+                        ? `Période de réduction active : vous bénéficiez actuellement de -${loyalty.discountPct} % (${formatEuro(loyalty.publicationPrice)} par dossier) !`
+                        : `Dossiers publiés en Diamond : ${loyalty.diamondPublicationsCount} · Réduction permanente -35 % active, portée jusqu'à -50 % (${formatEuro(14.99)}) pendant les périodes de réduction.`}
                     </p>
                     <p className="text-[11px] text-cyan-200/90">
-                      Privilèges spéciaux actifs : -45 % permanents · Mise en avant prioritaire de vos dossiers en tête de liste · Support humain prioritaire.
+                      Privilèges spéciaux actifs : -35 % permanents · Réduction encore plus grande pendant les périodes de réduction · Mise en avant prioritaire de vos dossiers en tête de liste · Support humain prioritaire.
                     </p>
                   </div>
                 ) : (

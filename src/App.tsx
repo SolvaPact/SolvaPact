@@ -10,7 +10,7 @@ import {
   User,
   DossierType,
 } from './types';
-import { auth } from './firebase';
+import { auth, getAuthHeaders } from './firebase';
 import {
   activateUserLoyaltyInFirestore,
   createOrSyncUserProfile,
@@ -20,6 +20,7 @@ import {
   markDossierAcceptedInFirestore,
   publishDossierToFirestore,
   recordAnalyticsEventInFirestore,
+  subscribeToAllDirectSubmissionsForAdmin,
   subscribeToCreatorNegotiations,
   subscribeToDirectSubmissionsForUser,
   subscribeToInvestorDirectory,
@@ -76,6 +77,7 @@ export default function App() {
   const [investorDirectory, setInvestorDirectory] = useState<InvestorDirectoryEntry[]>([]);
   const [incomingSubmissions, setIncomingSubmissions] = useState<DirectSubmission[]>([]);
   const [sentSubmissions, setSentSubmissions] = useState<DirectSubmission[]>([]);
+  const [adminAllSubmissions, setAdminAllSubmissions] = useState<DirectSubmission[]>([]);
   const [selectedInvestorForSend, setSelectedInvestorForSend] =
     useState<InvestorDirectoryEntry | null>(null);
 
@@ -150,6 +152,7 @@ export default function App() {
       setInvestorDirectory([]);
       setIncomingSubmissions([]);
       setSentSubmissions([]);
+      setAdminAllSubmissions([]);
       return;
     }
     const unsubThreads = subscribeToCreatorNegotiations(currentUser.uid, (threads) => {
@@ -165,12 +168,18 @@ export default function App() {
         setSentSubmissions(sent);
       }
     );
+    const unsubAdminSubmissions = isOwnerGoldEmail(currentUser.email)
+      ? subscribeToAllDirectSubmissionsForAdmin((all) => {
+          setAdminAllSubmissions(all);
+        })
+      : () => {};
     return () => {
       unsubThreads();
       unsubDirectory();
       unsubSubmissions();
+      unsubAdminSubmissions();
     };
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, currentUser?.email]);
 
   // Handle Stripe Checkout return (?payment=success)
   useEffect(() => {
@@ -353,11 +362,15 @@ export default function App() {
     if (currentUser?.uid) {
       recordAnalyticsEventInFirestore(currentUser.uid, payload).catch(() => {});
     }
-    fetch('/api/analytics/event', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch((err) => console.error('Analytics event tracking error:', err));
+    getAuthHeaders({ 'Content-Type': 'application/json' })
+      .then((headers) =>
+        fetch('/api/analytics/event', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        })
+      )
+      .catch((err) => console.error('Analytics event tracking error:', err));
   };
 
   const isOwner = isOwnerGoldEmail(currentUser?.email);
@@ -570,7 +583,7 @@ export default function App() {
   const unreadIncomingCount = incomingSubmissions.filter((s) => s.status === 'envoye').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-orange-600 selection:text-white">
+    <div className="min-h-screen bg-[#fcfaf6] text-slate-900 flex flex-col font-sans selection:bg-orange-600 selection:text-white">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -651,6 +664,7 @@ export default function App() {
 
             {activeTab === 'explorer' && (
               <MadagascarActionHub
+                onOpenCreateDossier={() => handleOpenDepositWithType('investissement')}
                 onOpenSimulateur={() => setActiveTab('simulateur')}
                 onOpenContactInvestors={() => setActiveTab('prendre_contact')}
                 onOpenHelp={() => setActiveTab('aide')}
@@ -662,7 +676,7 @@ export default function App() {
 
             {(activeTab === 'investissement' || activeTab === 'autre') && (
               <section id="catalogue-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <div className="mb-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-xs">
+              <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-white via-white to-orange-50/40 border border-orange-200/70 shadow-xs">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-orange-600 block mb-1">
@@ -726,7 +740,7 @@ export default function App() {
                     onClick={() => setActiveTab('autre')}
                     className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
                       activeTab === 'autre'
-                        ? 'bg-rose-600 text-white shadow-xs'
+                        ? 'bg-orange-600 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
@@ -1051,6 +1065,8 @@ export default function App() {
             investors={investorDirectory}
             incomingSubmissions={incomingSubmissions}
             sentSubmissions={sentSubmissions}
+            adminSubmissions={adminAllSubmissions}
+            isAdmin={isOwner}
             dossiers={dossiers}
             onOpenAuth={() => setIsAuthModalOpen(true)}
             onUserUpdated={(updatedUser) => setCurrentUser(applyOwnerGoldStatus(updatedUser))}
@@ -1061,6 +1077,9 @@ export default function App() {
             }
             onSelectDossier={(d) => setSelectedDossierForDetail(d)}
             onOpenDeposit={() => handleOpenDepositWithType('investissement')}
+            onInvestorRemoved={(uid) =>
+              setInvestorDirectory((prev) => prev.filter((item) => item.uid !== uid))
+            }
           />
         )}
 
@@ -1179,9 +1198,9 @@ export default function App() {
       )}
 
       {/* Footer with Madagascar Identity & Social Networks */}
-      <footer className="bg-white border-t border-slate-200 py-10 text-xs text-slate-600">
+      <footer className="bg-white border-t border-orange-200/70 py-10 text-xs text-slate-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-orange-50/60 via-white to-emerald-50/60 border border-orange-200/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="space-y-1 max-w-2xl">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
                 <MessageSquareHeart className="w-4 h-4 text-orange-600 shrink-0" />

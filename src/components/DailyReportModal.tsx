@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DailyReportSummary, User } from '../types';
 import { fetchDailyReportFromFirestore } from '../services/firestoreService';
+import { getAuthHeaders } from '../firebase';
 import { formatEuro, canViewDailyReport } from '../utils/finance';
 import {
   X,
@@ -57,10 +58,10 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
     setLoading(true);
     try {
       const firestoreSummary = await fetchDailyReportFromFirestore(dateKey).catch(() => null);
+      const headers = await getAuthHeaders();
       const res = await fetch(
-        `/api/analytics/daily?date=${encodeURIComponent(dateKey)}&ownerEmail=${encodeURIComponent(
-          currentUser.email || ''
-        )}&ownerName=${encodeURIComponent(currentUser.name)}`
+        `/api/analytics/daily?date=${encodeURIComponent(dateKey)}`,
+        { headers }
       );
       if (res.ok) {
         const data = (await res.json()) as {
@@ -103,12 +104,11 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
     if (!currentUser?.name || !isOwner) return;
     setSending(true);
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch('/api/analytics/send-daily-report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          ownerEmail: currentUser.email || '',
-          ownerName: currentUser.name,
           date: selectedDate,
         }),
       });
@@ -225,12 +225,12 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-1">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-indigo-800">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-700" />
+                <div className="p-4 rounded-xl bg-orange-50/70 border border-orange-200 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-800">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-orange-700" />
                     <span>Dossiers acceptés</span>
                   </div>
-                  <p className="text-2xl font-black text-indigo-900 font-mono tabular-nums">
+                  <p className="text-2xl font-black text-orange-900 font-mono tabular-nums">
                     {report.dossiersAccepted}
                   </p>
                 </div>

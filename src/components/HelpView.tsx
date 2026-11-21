@@ -313,7 +313,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
       {/* Hero Header */}
       <div className="text-center space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-semibold">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 text-orange-800 border border-orange-200 text-xs font-semibold">
           <Bot className="w-3.5 h-3.5" />
           <span>SolvaSolution (IA Instantanée) & Assistance Directe</span>
         </div>
@@ -734,7 +734,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
               Comment fonctionne le Compte Fidélité à {formatEuro(LOYALTY_ACTIVATION_PRICE)} ?
             </h4>
             <p className="text-slate-600 leading-relaxed text-xs">
-              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 0 EXP dès l&apos;activation = Bronze (Membre Vérifié, -10 %), 30 EXP / 3 dossiers = Silver (Membre Fidèle, -17 %), 60 EXP / 6 dossiers = Gold (Membre Précieux, -23 %), 120 EXP / 12 dossiers = <strong>Diamond (Membre Prestigieux Officiel, -45 % soit 16,49 €, 1 dossier offert tous les 5 dossiers, mise en avant et support prioritaires)</strong>.
+              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 0 EXP dès l&apos;activation = Bronze (Membre Vérifié, -10 %), 30 EXP / 3 dossiers = Silver (Membre Fidèle, -17 %), 60 EXP / 6 dossiers = Gold (Membre Précieux, -23 %), 120 EXP / 12 dossiers = <strong>Diamond (Membre Prestigieux Officiel, -35 % soit 19,49 €, réduction encore plus grande jusqu&apos;à -50 % pendant les périodes de réduction, mise en avant et support prioritaires)</strong>.
             </p>
           </div>
 

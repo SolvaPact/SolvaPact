@@ -18,6 +18,7 @@ import {
   computeRiskGrade,
   getLoyaltyStatus,
 } from '../utils/finance';
+import { getAuthHeaders } from '../firebase';
 import {
   X,
   ArrowRight,
@@ -858,10 +859,9 @@ Ma demande : ${trimmed}`
     }
 
     if (
-      !loyalty.isFreePublicationNow &&
-      (cardNumber.replace(/\s/g, '').length < 16 ||
-        expiry.length < 5 ||
-        cvc.length < 3)
+      cardNumber.replace(/\s/g, '').length < 16 ||
+      expiry.length < 5 ||
+      cvc.length < 3
     ) {
       setPaymentError(
         `Pour publier votre dossier (${formatEuro(loyalty.publicationPrice)}), veuillez renseigner une carte bancaire valide (16 chiffres, MM/AA et CVC).`
@@ -873,9 +873,10 @@ Ma demande : ${trimmed}`
     setPaymentPhase('verifying');
 
     try {
+      const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       const checkoutRes = await fetch('/api/payments/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           kind: 'publication',
           loyaltyActive: Boolean(currentUser?.loyaltyActive),
@@ -1118,9 +1119,7 @@ Ma demande : ${trimmed}`
               {step === 2 && '2. Montants, durée et conditions (Gratuit)'}
               {step === 3 && "3. Situation financière & Garanties (Gratuit)"}
               {step === 4 &&
-                (loyalty.isFreePublicationNow
-                  ? '4. Justificatifs & Publication gratuite (Avantage Diamond 0 €)'
-                  : `4. Justificatifs & Publication en ligne (${formatEuro(loyalty.publicationPrice)})`)}
+                `4. Justificatifs & Publication en ligne (${formatEuro(loyalty.publicationPrice)})`}
             </h2>
           </div>
 
@@ -1336,11 +1335,11 @@ Ma demande : ${trimmed}`
                   onClick={() => setType('autre')}
                   className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
                     type === 'autre'
-                      ? 'border-rose-600 bg-rose-50/50 shadow-xs'
+                      ? 'border-orange-600 bg-orange-50/60 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <span className="text-xs font-bold text-rose-900 uppercase tracking-wider block mb-1">
+                  <span className="text-xs font-bold text-orange-900 uppercase tracking-wider block mb-1">
                     Onglet 2
                   </span>
                   <h4 className="text-sm font-bold text-slate-900">Autre sujet</h4>
@@ -2302,10 +2301,10 @@ Ma demande : ${trimmed}`
                     <span className="flex items-center gap-1.5 font-medium">
                       <Award className="w-4 h-4 text-amber-400 shrink-0" />
                       <span>
-                        {loyalty.isFreePublicationNow
-                          ? 'Avantage Diamond : ce 5e dossier est 100 % OFFERT (0 €) !'
-                          : loyalty.isDiamond
-                          ? `Membre Prestigieux Officiel (-45 %) · Prochain dossier offert dans ${loyalty.dossiersUntilFreePublication} publication(s)`
+                        {loyalty.isDiamond
+                          ? loyalty.isPromoPeriod
+                            ? `Membre Prestigieux Officiel (Diamond) : -${loyalty.discountPct} % appliqués (période de réduction !)`
+                            : `Membre Prestigieux Officiel (Diamond) : -${loyalty.discountPct} % permanents · Jusqu'à -50 % en période de réduction`
                           : loyalty.discountPct > 0
                           ? `Réduction fidélité -${loyalty.discountPct} % appliquée (${loyalty.label})`
                           : 'Compte Fidélité actif (Palier Bronze -10 %)'}
@@ -2318,7 +2317,7 @@ Ma demande : ${trimmed}`
                 ) : (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl text-slate-300">
                     <span>
-                      Astuce : activez le <strong>Compte Fidélité ({formatEuro(LOYALTY_ACTIVATION_PRICE)})</strong> pour gagner +{EXP_PER_DOSSIER} EXP par dossier et obtenir jusqu'à -45 % + 1 dossier offert / 5.
+                      Astuce : activez le <strong>Compte Fidélité ({formatEuro(LOYALTY_ACTIVATION_PRICE)})</strong> pour gagner +{EXP_PER_DOSSIER} EXP par dossier et obtenir -35 % permanents (et jusqu&apos;à -50 % en période de réduction).
                     </span>
                     {onOpenLoyalty && (
                       <button
@@ -2338,17 +2337,8 @@ Ma demande : ${trimmed}`
                   </div>
                 )}
 
-                {/* Payment Card Fields (hidden when 5th Diamond dossier is 100% Free) */}
-                {loyalty.isFreePublicationNow ? (
-                  <div className="p-3.5 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-xs text-cyan-100 space-y-1">
-                    <p className="font-bold text-cyan-300">
-                      ✦ Dossier offert — Aucune carte bancaire requise
-                    </p>
-                    <p className="text-[11px] text-cyan-100/90 leading-relaxed">
-                      En tant que Membre Prestigieux Officiel (Diamond), votre 5e dossier est publié gratuitement (0 €) avec mise en avant prioritaire automatique.
-                    </p>
-                  </div>
-                ) : (
+                {/* Payment Card Fields */}
+                {(
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
@@ -2444,9 +2434,7 @@ Ma demande : ${trimmed}`
                     <Lock className="w-3.5 h-3.5" />
                     <Check className="w-4 h-4" />
                     <span>
-                      {loyalty.isFreePublicationNow
-                        ? 'Publier gratuitement (5e dossier Diamond offert)'
-                        : `Payer ${formatEuro(loyalty.publicationPrice)} et publier mon dossier`}
+                      {`Payer ${formatEuro(loyalty.publicationPrice)} et publier mon dossier`}
                     </span>
                   </>
                 )}
@@ -2457,11 +2445,7 @@ Ma demande : ${trimmed}`
       </div>
       <FuturisticPaymentOverlay
         phase={paymentPhase}
-        amountLabel={
-          loyalty.isFreePublicationNow
-            ? '0 € (Offert)'
-            : formatEuro(loyalty.publicationPrice)
-        }
+        amountLabel={formatEuro(loyalty.publicationPrice)}
         subtitle="Publication officielle et mise en ligne du dossier sur SolvaPact"
       />
     </div>

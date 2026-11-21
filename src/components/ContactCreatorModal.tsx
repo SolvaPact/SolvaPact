@@ -7,6 +7,7 @@ import {
 } from '../types';
 import { formatEuro, formatPct, getLoyaltyNameColorClass } from '../utils/finance';
 import { useModalEscape } from '../utils/useModalEscape';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 import {
   fetchOwnerPrivateContact,
   getOrCreateNegotiationThread,
@@ -248,8 +249,17 @@ export const ContactCreatorModal: React.FC<ContactCreatorModalProps> = ({
               </div>
               <div className="min-w-0">
                 <span className="text-[11px] text-slate-500 block">Porteur de dossier</span>
-                <span className={`text-sm truncate block ${getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}`}>
-                  {fullName}
+                <span className="inline-flex items-center gap-1.5 max-w-full">
+                  <span className={`text-sm truncate ${getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}`}>
+                    {fullName}
+                  </span>
+                  <LoyaltyVerifiedBadge
+                    tier={
+                      dossier.applicant.loyaltyTier ||
+                      (dossier.isDiamondPriority ? 'diamond' : 'none')
+                    }
+                    size="xs"
+                  />
                 </span>
               </div>
             </div>

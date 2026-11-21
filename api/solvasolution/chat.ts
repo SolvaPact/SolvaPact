@@ -40,14 +40,14 @@ FORMAT D'ÉCRITURE OBLIGATOIRE : Rédige toujours en texte clair, naturel et agr
 4. Mise en relation directe & Accord 100 % net :
    - SolvaPact est uniquement une plateforme de mise en relation. Le bouton « Négocier » en bas d'un dossier publié permet d'échanger en direct avec le créateur (et d'accéder à ses coordonnées partagées), et l'onglet « Prendre contact » permet aux demandeurs de voir la liste des investisseurs consentants (avec e-mail de contact) et de leur envoyer directement leur dossier.
    - Toute la négociation et tous les virements d'argent (MVola, Orange Money, Airtel Money ou virement bancaire) s'effectuent directement entre les parties en dehors du site. SolvaPact ne détient, ne reçoit et ne transfère jamais les fonds des transactions.
-   - Tous les accords et transferts sont 100 % directs entre membres : SolvaPact vit uniquement grâce aux frais de publication (29,99 €) et au Compte Fidélité (80 €), sans intervenir dans la circulation des fonds hors site.
+   - Tous les accords et transferts sont 100 % directs entre membres : SolvaPact vit uniquement grâce aux frais de publication (29,99 €) et au Compte Fidélité (39,99 €), sans intervenir dans la circulation des fonds hors site.
    - Quand un accord est conclu, le créateur du dossier peut cliquer sur « Marquer ce dossier comme accepté » sur son dossier.
-5. Compte Fidélité SolvaPact (80 € en une seule fois à vie) :
+5. Compte Fidélité SolvaPact (39,99 € en une seule fois à vie) :
    - Chaque dossier publié rapporte +10 EXP.
-   - Palier Bronze (50 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
-   - Palier Silver (150 EXP, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
-   - Palier Gold (300 EXP, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
-   - Palier Diamond (500 EXP, titre officiel « Membre Prestigieux Officiel ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
+   - Palier Bronze (de base dès l'activation, 0 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et un badge vérifié Bronze (coche) affiché à côté du nom du compte.
+   - Palier Silver (30 EXP, soit 3 dossiers publiés, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et un badge vérifié Silver (coche) affiché à côté du nom du compte.
+   - Palier Gold (60 EXP, soit 6 dossiers publiés, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et un badge vérifié Gold (coche) affiché à côté du nom du compte.
+   - Palier Diamond (120 EXP, soit 12 dossiers publiés, titre officiel « Membre Prestigieux Officiel ») : -35 % permanents sur la publication (soit 19,49 €), des réductions encore plus grandes (jusqu'à -50 %, soit 14,99 €) pendant les périodes de réduction, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et la coche bleue officielle Diamond affichée à côté du nom du compte.
 6. Cadre légal, réseaux sociaux & contact officiel :
    - Les accords conclus entre membres s'inscrivent dans le cadre du Code Civil français (articles 1892 et 2044, protocole sous seing privé).
    - Réseaux sociaux officiels (actualités, conseils et retours d'expérience bienvenus) : Instagram (@solvapact), Facebook (Solva Pact) et LinkedIn (Solva Pact).
@@ -110,6 +110,10 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Veuillez saisir une question pour SolvaSolution.' });
     }
 
+    if (message.trim().length > 4000) {
+      return res.status(400).json({ error: 'Votre message est trop long (maximum 4 000 caractères).' });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(503).json({
@@ -146,18 +150,34 @@ export default async function handler(req: any, res: any) {
         )}, EXP=${Math.max(0, Number(userContext.exp) || 0)}.`
       : '';
 
-    const contents = [
+    const rawTurns = [
       ...(Array.isArray(history) ? history.slice(-8) : [])
         .filter((turn) => turn && typeof turn.text === 'string' && turn.text.trim())
         .map((turn) => ({
-          role: turn.role === 'model' ? 'model' : 'user',
-          parts: [{ text: turn.text.trim() }],
+          role: (turn.role === 'model' ? 'model' : 'user') as 'user' | 'model',
+          text: turn.text.trim().slice(0, 2000),
         })),
       {
-        role: 'user',
-        parts: [{ text: message.trim() }],
+        role: 'user' as const,
+        text: message.trim().slice(0, 4000),
       },
     ];
+
+    const normalizedTurns: Array<{ role: 'user' | 'model'; text: string }> = [];
+    for (const turn of rawTurns) {
+      if (normalizedTurns.length === 0 && turn.role !== 'user') continue;
+      const prev = normalizedTurns[normalizedTurns.length - 1];
+      if (prev && prev.role === turn.role) {
+        prev.text = `${prev.text}\n\n${turn.text}`;
+      } else {
+        normalizedTurns.push({ ...turn });
+      }
+    }
+
+    const contents = normalizedTurns.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.text }],
+    }));
 
     const baseCandidates: Array<{
       model: string;

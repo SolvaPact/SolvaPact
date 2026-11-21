@@ -4,12 +4,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const q = typeof req.query?.q === 'string' ? req.query.q.trim() : '';
-  const country = typeof req.query?.country === 'string' ? req.query.country : 'MG';
+  const rawCountry = typeof req.query?.country === 'string' ? req.query.country.trim().toUpperCase() : 'MG';
+  const country = rawCountry === 'FR' ? 'FR' : 'MG';
 
-  if (!q || q.length < 3) {
+  if (!q || q.length < 3 || q.length > 100) {
     return res
       .status(400)
-      .json({ error: 'Saisissez un NIF/STAT malgache ou un SIREN/nom de société.' });
+      .json({ error: 'Saisissez un NIF/STAT malgache ou un SIREN/nom de société (3 à 100 caractères).' });
   }
 
   const digitsOnly = q.replace(/\s+/g, '');
@@ -30,7 +31,8 @@ export default async function handler(req: any, res: any) {
 
   try {
     const apiRes = await fetch(
-      `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&per_page=5`
+      `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&per_page=5`,
+      { signal: AbortSignal.timeout(8000) }
     );
     if (!apiRes.ok) {
       return res.json({ results: [] });

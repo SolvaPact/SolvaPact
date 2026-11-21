@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Trash2,
 } from 'lucide-react';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 
 interface MarketTrustSectionProps {
   dossiers: Dossier[];
@@ -47,11 +48,11 @@ const COLUMNS: ColumnConfig[] = [
     type: 'autre',
     title: 'Autres sujets',
     subtitle: 'Solidarité, besoins divers & accompagnements',
-    accentBorder: 'border-rose-200',
-    headerBg: 'bg-rose-50/70',
-    titleColor: 'text-rose-900',
-    badgeClass: 'bg-rose-100 text-rose-800',
-    stripColor: 'bg-rose-500',
+    accentBorder: 'border-orange-200',
+    headerBg: 'bg-orange-50/80',
+    titleColor: 'text-orange-900',
+    badgeClass: 'bg-orange-100 text-orange-800',
+    stripColor: 'bg-orange-600',
     Icon: FolderOpen,
   },
 ];
@@ -66,7 +67,7 @@ export const MarketTrustSection: React.FC<MarketTrustSectionProps> = ({
 }) => {
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
   return (
-    <section id="market-lanes-section" className="bg-slate-50 border-b border-slate-200 py-10 lg:py-12">
+    <section id="market-lanes-section" className="bg-[#faf6f0] border-b border-orange-200/60 py-10 lg:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* 2 Scrollable Dossier Lanes: Investissement | Autre */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
@@ -133,9 +134,11 @@ export const MarketTrustSection: React.FC<MarketTrustSectionProps> = ({
                         >
                           <div className="p-3.5 space-y-2.5">
                             <div className="flex items-center justify-between text-[11px] text-slate-500 gap-2">
-                              <span className={`${getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)} truncate`}>
-                                {isDiamond ? '✦ ' : ''}
-                                {dossier.applicant.pseudonym}
+                              <span className="inline-flex items-center gap-1 min-w-0">
+                                <span className={`${getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)} truncate`}>
+                                  {dossier.applicant.pseudonym}
+                                </span>
+                                <LoyaltyVerifiedBadge tier={dossier.applicant.loyaltyTier} size="xs" />
                               </span>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <span

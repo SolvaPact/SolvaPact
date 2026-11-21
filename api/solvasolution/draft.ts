@@ -219,6 +219,23 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    if (userPrompt.trim().length > 4000) {
+      return res.status(400).json({
+        error: 'Votre description est trop longue (maximum 4 000 caractères).',
+      });
+    }
+
+    if (attachedPdf !== undefined && attachedPdf !== null) {
+      if (
+        typeof attachedPdf !== 'object' ||
+        (attachedPdf.mimeType && attachedPdf.mimeType !== 'application/pdf') ||
+        (typeof attachedPdf.dataBase64 === 'string' &&
+          (attachedPdf.dataBase64.length > 5500000 || !/^[A-Za-z0-9+/=\r\n]*$/.test(attachedPdf.dataBase64)))
+      ) {
+        return res.status(400).json({ error: 'Document PDF joint invalide ou trop volumineux.' });
+      }
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(503).json({

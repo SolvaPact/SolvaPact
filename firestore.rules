@@ -471,7 +471,8 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin()
-        || (isSignedIn() && isVerifiedUser() && isValidId(submissionId) && existing().senderUid == request.auth.uid);
+        || (isSignedIn() && isVerifiedUser() && isValidId(submissionId)
+            && (existing().senderUid == request.auth.uid || existing().investorUid == request.auth.uid));
     }
 
     match /dossiers/{dossierId} {

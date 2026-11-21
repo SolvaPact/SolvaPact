@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 function cleanSolvaSolutionText(text: string): string {
@@ -263,10 +264,10 @@ FORMAT D'ÉCRITURE OBLIGATOIRE : Rédige toujours en texte clair, naturel et agr
    - Quand un accord est conclu, le créateur du dossier peut cliquer sur « Marquer ce dossier comme accepté » sur son dossier.
 5. Compte Fidélité SolvaPact (39,99 € en une seule fois à vie) :
    - Chaque dossier publié rapporte +10 EXP.
-   - Palier Bronze (de base dès l'activation, 0 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
-   - Palier Silver (30 EXP, soit 3 dossiers publiés, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
-   - Palier Gold (60 EXP, soit 6 dossiers publiés, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
-   - Palier Diamond (120 EXP, soit 12 dossiers publiés, titre « Membre Prestigieux Officiel ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
+   - Palier Bronze (de base dès l'activation, 0 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et un badge vérifié Bronze (coche) affiché à côté du nom du compte.
+   - Palier Silver (30 EXP, soit 3 dossiers publiés, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et un badge vérifié Silver (coche) affiché à côté du nom du compte.
+   - Palier Gold (60 EXP, soit 6 dossiers publiés, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et un badge vérifié Gold (coche) affiché à côté du nom du compte.
+   - Palier Diamond (120 EXP, soit 12 dossiers publiés, titre « Membre Prestigieux Officiel ») : -35 % permanents sur la publication (soit 19,49 €), des réductions encore plus grandes (jusqu'à -50 %, soit 14,99 €) pendant les périodes de réduction, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et la coche bleue officielle Diamond affichée à côté du nom du compte.
 6. Cadre légal, réseaux sociaux & contact officiel :
    - Les accords conclus entre membres sont formalisés sous seing privé (force obligatoire des conventions civiles et commerciales).
    - Réseaux sociaux officiels (actualités, conseils et retours d'expérience bienvenus) : Instagram (@solvapact), Facebook (Solva Pact) et LinkedIn (Solva Pact).
@@ -330,6 +331,243 @@ function getParisHourMinute(date = new Date()): { hour: number; minute: number }
 function isOwnerEmail(email?: string | null): boolean {
   if (!email) return false;
   return ALLOWED_OWNER_EMAILS.includes(email.trim().toLowerCase());
+}
+
+const FIREBASE_CONFIG = (() => {
+  try {
+    const raw = fs.readFileSync(path.resolve('firebase-applet-config.json'), 'utf8');
+    const parsed = JSON.parse(raw) as { projectId?: string; firestoreDatabaseId?: string };
+    return {
+      projectId: parsed.projectId || 'vigilant-citron-gwjrd',
+      databaseId: parsed.firestoreDatabaseId || 'solvapact-db',
+    };
+  } catch {
+    return {
+      projectId: process.env.FIREBASE_PROJECT_ID || 'vigilant-citron-gwjrd',
+      databaseId: process.env.FIREBASE_DATABASE_ID || 'solvapact-db',
+    };
+  }
+})();
+
+interface VerifiedFirebaseUser {
+  uid: string;
+  email: string | null;
+  emailVerified: boolean;
+  name: string | null;
+  token: string;
+}
+
+let cachedGoogleCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
+
+async function getGoogleFirebaseCerts(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (cachedGoogleCerts && now < cachedGoogleCerts.expiresAt) {
+    return cachedGoogleCerts.certs;
+  }
+  const resp = await fetch(
+    'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com',
+    { signal: AbortSignal.timeout(6000) }
+  );
+  if (!resp.ok) {
+    throw new Error(`Unable to fetch Firebase public keys (${resp.status})`);
+  }
+  const certs = (await resp.json()) as Record<string, string>;
+  const cacheControl = resp.headers.get('cache-control') || '';
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+  const maxAgeSec = maxAgeMatch ? Math.min(86400, Math.max(60, Number(maxAgeMatch[1]))) : 3600;
+  cachedGoogleCerts = {
+    certs,
+    expiresAt: now + maxAgeSec * 1000,
+  };
+  return certs;
+}
+
+function decodeBase64UrlJson<T = Record<string, unknown>>(segment: string): T | null {
+  try {
+    const jsonStr = Buffer.from(segment, 'base64url').toString('utf8');
+    return JSON.parse(jsonStr) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyFirebaseIdToken(authHeader?: string): Promise<VerifiedFirebaseUser | null> {
+  if (!authHeader || typeof authHeader !== 'string') return null;
+  const match = authHeader.match(/^Bearer\s+([A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)$/);
+  if (!match) return null;
+
+  const token = match[1];
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  const [headerB64, payloadB64, signatureB64] = parts;
+  const header = decodeBase64UrlJson<{ alg?: string; kid?: string }>(headerB64);
+  const payload = decodeBase64UrlJson<{
+    iss?: string;
+    aud?: string;
+    sub?: string;
+    exp?: number;
+    iat?: number;
+    auth_time?: number;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+  }>(payloadB64);
+
+  if (!header || !payload || header.alg !== 'RS256' || !header.kid) {
+    return null;
+  }
+
+  try {
+    const certs = await getGoogleFirebaseCerts();
+    const pemCert = certs[header.kid];
+    if (!pemCert) return null;
+
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(`${headerB64}.${payloadB64}`);
+    verifier.end();
+
+    const sigBuffer = Buffer.from(signatureB64, 'base64url');
+    if (!verifier.verify(pemCert, sigBuffer)) {
+      return null;
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const expectedIss = `https://securetoken.google.com/${FIREBASE_CONFIG.projectId}`;
+    if (
+      payload.aud !== FIREBASE_CONFIG.projectId ||
+      payload.iss !== expectedIss ||
+      typeof payload.sub !== 'string' ||
+      !payload.sub.trim() ||
+      typeof payload.exp !== 'number' ||
+      payload.exp <= nowSec ||
+      typeof payload.iat !== 'number' ||
+      payload.iat > nowSec + 300 ||
+      (typeof payload.auth_time === 'number' && payload.auth_time > nowSec + 300)
+    ) {
+      return null;
+    }
+
+    return {
+      uid: payload.sub,
+      email: typeof payload.email === 'string' ? payload.email : null,
+      emailVerified: Boolean(payload.email_verified),
+      name: typeof payload.name === 'string' ? payload.name : null,
+      token,
+    };
+  } catch (err) {
+    console.warn('Firebase token verification error:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+interface ServerUserLoyalty {
+  loyaltyActive: boolean;
+  loyaltyExp: number;
+  diamondPublicationsCount: number;
+}
+
+async function fetchUserLoyaltyFromFirestore(
+  user: VerifiedFirebaseUser
+): Promise<ServerUserLoyalty> {
+  const isVerifiedOwner = user.emailVerified && isOwnerEmail(user.email);
+  const defaultState: ServerUserLoyalty = isVerifiedOwner
+    ? { loyaltyActive: true, loyaltyExp: 120, diamondPublicationsCount: 0 }
+    : { loyaltyActive: false, loyaltyExp: 0, diamondPublicationsCount: 0 };
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+      FIREBASE_CONFIG.projectId
+    )}/databases/${encodeURIComponent(
+      FIREBASE_CONFIG.databaseId
+    )}/documents/users/${encodeURIComponent(user.uid)}`;
+
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${user.token}`,
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!resp.ok) {
+      return defaultState;
+    }
+
+    const docData = (await resp.json()) as {
+      fields?: {
+        loyaltyActive?: { booleanValue?: boolean };
+        loyaltyExp?: { integerValue?: string; doubleValue?: number };
+        diamondPublicationsCount?: { integerValue?: string; doubleValue?: number };
+      };
+    };
+
+    const fields = docData.fields || {};
+    const exp = Math.max(
+      0,
+      Number(fields.loyaltyExp?.integerValue ?? fields.loyaltyExp?.doubleValue ?? 0) || 0
+    );
+    const active = Boolean(fields.loyaltyActive?.booleanValue) || isVerifiedOwner;
+    const count = Math.max(
+      0,
+      Number(
+        fields.diamondPublicationsCount?.integerValue ??
+          fields.diamondPublicationsCount?.doubleValue ??
+          0
+      ) || 0
+    );
+
+    return {
+      loyaltyActive: active,
+      loyaltyExp: isVerifiedOwner ? Math.max(120, exp) : exp,
+      diamondPublicationsCount: count,
+    };
+  } catch (err) {
+    console.warn('Firestore server loyalty lookup warning:', err instanceof Error ? err.message : err);
+    return defaultState;
+  }
+}
+
+function createRateLimiter(windowMs: number, maxRequests: number) {
+  const hits = new Map<string, number[]>();
+  const MAX_TRACKED_IPS = 5000;
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const rawIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const key = rawIp.slice(0, 80);
+
+    if (hits.size > MAX_TRACKED_IPS) {
+      for (const [k, timestamps] of hits) {
+        if (timestamps.length === 0 || timestamps[timestamps.length - 1] < now - windowMs) {
+          hits.delete(k);
+        }
+        if (hits.size <= MAX_TRACKED_IPS * 0.8) break;
+      }
+    }
+
+    const prev = (hits.get(key) || []).filter((ts) => ts > now - windowMs);
+    if (prev.length >= maxRequests) {
+      const oldest = prev[0];
+      const retryAfterSec = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSec));
+      res.status(429).json({
+        error: 'Trop de requêtes détectées. Patientez quelques secondes avant de réessayer.',
+      });
+      return;
+    }
+
+    prev.push(now);
+    hits.set(key, prev);
+    next();
+  };
+}
+
+function isValidEmail(email: string): boolean {
+  return email.length <= 180 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+function stripControlChars(text: string): string {
+  return text.replace(/[\u0000-\u001F\u007F]/g, ' ').trim();
 }
 
 function readTickets(): SupportTicket[] {
@@ -534,13 +772,33 @@ async function dispatchDailyReport(dateKey: string): Promise<{
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    res.setHeader('X-DNS-Prefetch-Control', 'off');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '6mb' }));
+
+  const aiRateLimiter = createRateLimiter(60_000, 20);
+  const sensitiveApiLimiter = createRateLimiter(60_000, 20);
+  const verifyApiLimiter = createRateLimiter(60_000, 30);
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({ ok: true, service: 'solvapact-madagascar', timestamp: new Date().toISOString() });
   });
 
-  app.post('/api/solvasolution/chat', async (req: Request, res: Response) => {
+  app.post('/api/solvasolution/chat', aiRateLimiter, async (req: Request, res: Response) => {
     try {
       const { message, history, userContext } = req.body as {
         message?: string;
@@ -550,6 +808,13 @@ async function startServer() {
 
       if (!message || typeof message !== 'string' || !message.trim()) {
         res.status(400).json({ error: 'Veuillez saisir une question pour SolvaSolution.' });
+        return;
+      }
+
+      if (message.trim().length > 4000) {
+        res.status(400).json({
+          error: 'Votre message est trop long (maximum 4 000 caractères).',
+        });
         return;
       }
 
@@ -586,11 +851,11 @@ async function startServer() {
           .filter((turn) => turn && typeof turn.text === 'string' && turn.text.trim())
           .map((turn) => ({
             role: (turn.role === 'model' ? 'model' : 'user') as 'user' | 'model',
-            text: turn.text.trim(),
+            text: turn.text.trim().slice(0, 2000),
           })),
         {
           role: 'user' as const,
-          text: message.trim(),
+          text: message.trim().slice(0, 4000),
         },
       ];
 
@@ -711,7 +976,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/solvasolution/draft', async (req: Request, res: Response) => {
+  app.post('/api/solvasolution/draft', aiRateLimiter, async (req: Request, res: Response) => {
     try {
       const { step, userPrompt, dossierContext, userName, attachedPdf } = req.body as {
         step?: number;
@@ -757,6 +1022,23 @@ async function startServer() {
       if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
         res.status(400).json({ error: 'Décrivez brièvement votre besoin pour que SolvaSolution rédige pour vous.' });
         return;
+      }
+
+      if (userPrompt.trim().length > 4000) {
+        res.status(400).json({ error: 'Votre description est trop longue (maximum 4 000 caractères).' });
+        return;
+      }
+
+      if (attachedPdf !== undefined && attachedPdf !== null) {
+        if (
+          typeof attachedPdf !== 'object' ||
+          (attachedPdf.mimeType && attachedPdf.mimeType !== 'application/pdf') ||
+          (typeof attachedPdf.dataBase64 === 'string' &&
+            (attachedPdf.dataBase64.length > 5500000 || !/^[A-Za-z0-9+/=\r\n]*$/.test(attachedPdf.dataBase64)))
+        ) {
+          res.status(400).json({ error: 'Document PDF joint invalide ou trop volumineux.' });
+          return;
+        }
       }
 
       const ai = getAiClient();
@@ -1171,22 +1453,45 @@ ${stepFormat}`;
     }
   });
 
-  app.post('/api/support/ticket', (req: Request, res: Response) => {
+  app.post('/api/support/ticket', sensitiveApiLimiter, (req: Request, res: Response) => {
     const { name, email, subject, message, aiTranscript } = req.body as Partial<SupportTicket>;
 
-    if (!name?.trim() || !email?.trim() || !message?.trim()) {
+    if (
+      typeof name !== 'string' ||
+      typeof email !== 'string' ||
+      typeof message !== 'string' ||
+      !name.trim() ||
+      !email.trim() ||
+      !message.trim()
+    ) {
       res.status(400).json({ error: 'Nom, e-mail et message sont requis.' });
+      return;
+    }
+
+    const cleanName = stripControlChars(name).slice(0, 120);
+    const cleanEmail = stripControlChars(email).slice(0, 180);
+    const cleanSubject =
+      typeof subject === 'string' && subject.trim()
+        ? stripControlChars(subject).slice(0, 180)
+        : 'Demande d’assistance';
+    const cleanMessage = message.trim().slice(0, 4000);
+
+    if (!cleanName || !isValidEmail(cleanEmail) || cleanMessage.length < 3) {
+      res.status(400).json({ error: 'Veuillez fournir un nom, un e-mail valide et un message.' });
       return;
     }
 
     const ticketId = `SP-SUP-${Math.floor(10000 + Math.random() * 90000)}`;
     const ticket: SupportTicket = {
       id: ticketId,
-      name: name.trim(),
-      email: email.trim(),
-      subject: (subject || 'Demande d’assistance').trim(),
-      message: message.trim(),
-      aiTranscript: aiTranscript?.trim() || undefined,
+      name: cleanName,
+      email: cleanEmail,
+      subject: cleanSubject,
+      message: cleanMessage,
+      aiTranscript:
+        typeof aiTranscript === 'string' && aiTranscript.trim()
+          ? aiTranscript.trim().slice(0, 6000)
+          : undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -1199,8 +1504,14 @@ ${stepFormat}`;
     });
   });
 
-  // Record business & satisfaction events (used by frontend; never exposed to normal clients)
-  app.post('/api/analytics/event', (req: Request, res: Response) => {
+  // Record business & satisfaction events (requires valid Firebase authentication)
+  app.post('/api/analytics/event', sensitiveApiLimiter, async (req: Request, res: Response) => {
+    const verifiedUser = await verifyFirebaseIdToken(req.headers.authorization);
+    if (!verifiedUser) {
+      res.status(401).json({ error: 'Authentification requise pour enregistrer un événement.' });
+      return;
+    }
+
     const body = req.body as Partial<AnalyticsEvent>;
     const validTypes: AnalyticsEventType[] = [
       'dossier_published',
@@ -1214,14 +1525,43 @@ ${stepFormat}`;
       return;
     }
 
-    const dateKey = body.date || getParisDateKey();
+    let validatedAmount: number | undefined;
+    if (body.amount !== undefined) {
+      if (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount < 0 || body.amount > 100000) {
+        res.status(400).json({ error: 'Montant invalide.' });
+        return;
+      }
+      validatedAmount = Math.round(body.amount * 100) / 100;
+    }
+
+    let validatedRating: number | undefined;
+    if (body.rating !== undefined) {
+      if (
+        typeof body.rating !== 'number' ||
+        !Number.isInteger(body.rating) ||
+        body.rating < 1 ||
+        body.rating > 5
+      ) {
+        res.status(400).json({ error: 'La note de satisfaction doit être comprise entre 1 et 5.' });
+        return;
+      }
+      validatedRating = body.rating;
+    }
+
+    const dateKey =
+      typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
+        ? body.date
+        : getParisDateKey();
     const events = readAnalyticsEvents();
+
+    const safeDossierId =
+      typeof body.dossierId === 'string' ? stripControlChars(body.dossierId).slice(0, 128) : undefined;
 
     // Prevent duplicate recording for same dossier published or accepted
     if (
       (body.type === 'dossier_published' || body.type === 'dossier_accepted') &&
-      body.dossierId &&
-      events.some((e) => e.type === body.type && e.dossierId === body.dossierId)
+      safeDossierId &&
+      events.some((e) => e.type === body.type && e.dossierId === safeDossierId)
     ) {
       res.json({ ok: true, deduplicated: true });
       return;
@@ -1232,13 +1572,20 @@ ${stepFormat}`;
       date: dateKey,
       timestamp: new Date().toISOString(),
       type: body.type,
-      dossierId: body.dossierId,
-      dossierTitle: body.dossierTitle,
-      amount: typeof body.amount === 'number' ? body.amount : undefined,
-      rating: typeof body.rating === 'number' ? body.rating : undefined,
-      comment: body.comment?.trim(),
-      userName: body.userName?.trim(),
-      userEmail: body.userEmail?.trim(),
+      dossierId: safeDossierId,
+      dossierTitle:
+        typeof body.dossierTitle === 'string'
+          ? stripControlChars(body.dossierTitle).slice(0, 180)
+          : undefined,
+      amount: validatedAmount,
+      rating: validatedRating,
+      comment:
+        typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : undefined,
+      userName:
+        typeof body.userName === 'string'
+          ? stripControlChars(body.userName).slice(0, 120)
+          : verifiedUser.name || undefined,
+      userEmail: verifiedUser.email || undefined,
     };
 
     events.unshift(newEvent);
@@ -1246,15 +1593,15 @@ ${stepFormat}`;
     res.json({ ok: true, event: newEvent });
   });
 
-  const isHugoOwnerName = (name?: string | null) =>
-    typeof name === 'string' &&
-    name.trim().replace(/\s+/g, ' ').toLowerCase() === 'hugo laumonier';
-
-  // Owner-only private daily report retrieval
-  app.get('/api/analytics/daily', (req: Request, res: Response) => {
-    const ownerName = typeof req.query.ownerName === 'string' ? req.query.ownerName : '';
-    if (!isHugoOwnerName(ownerName)) {
-      res.status(403).json({ error: 'Accès réservé uniquement à Hugo Laumonier.' });
+  // Owner-only private daily report retrieval (cryptographic Firebase ID Token verification)
+  app.get('/api/analytics/daily', sensitiveApiLimiter, async (req: Request, res: Response) => {
+    const verifiedUser = await verifyFirebaseIdToken(req.headers.authorization);
+    if (!verifiedUser) {
+      res.status(401).json({ error: 'Authentification requise.' });
+      return;
+    }
+    if (!verifiedUser.emailVerified || !isOwnerEmail(verifiedUser.email)) {
+      res.status(403).json({ error: 'Accès strictement réservé au fondateur.' });
       return;
     }
 
@@ -1277,17 +1624,20 @@ ${stepFormat}`;
   });
 
   // Owner-only trigger to send or prepare the end-of-day email report to solvapact.vercel.app@gmail.com
-  app.post('/api/analytics/send-daily-report', async (req: Request, res: Response) => {
-    const { ownerEmail, ownerName, date } = req.body as {
-      ownerEmail?: string;
-      ownerName?: string;
-      date?: string;
-    };
-    if (!isHugoOwnerName(ownerName)) {
-      res.status(403).json({ error: 'Accès réservé uniquement à Hugo Laumonier.' });
+  app.post('/api/analytics/send-daily-report', sensitiveApiLimiter, async (req: Request, res: Response) => {
+    const verifiedUser = await verifyFirebaseIdToken(req.headers.authorization);
+    if (!verifiedUser) {
+      res.status(401).json({ error: 'Authentification requise.' });
       return;
     }
-    void ownerEmail;
+    if (!verifiedUser.emailVerified || !isOwnerEmail(verifiedUser.email)) {
+      res.status(403).json({ error: 'Accès strictement réservé au fondateur.' });
+      return;
+    }
+
+    const { date } = (req.body || {}) as {
+      date?: string;
+    };
 
     const dateKey = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getParisDateKey();
     const { record, emailSubject, emailBody } = await dispatchDailyReport(dateKey);
@@ -1306,11 +1656,12 @@ ${stepFormat}`;
   });
 
   // Real company verification: Malagasy NIF/STAT format + French INSEE public registry
-  app.get('/api/company/verify', async (req: Request, res: Response) => {
+  app.get('/api/company/verify', verifyApiLimiter, async (req: Request, res: Response) => {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    const country = typeof req.query.country === 'string' ? req.query.country : 'MG';
-    if (!q || q.length < 3) {
-      res.status(400).json({ error: 'Saisissez un NIF/STAT malgache ou un SIREN/nom de société.' });
+    const rawCountry = typeof req.query.country === 'string' ? req.query.country.trim().toUpperCase() : 'MG';
+    const country = rawCountry === 'FR' ? 'FR' : 'MG';
+    if (!q || q.length < 3 || q.length > 100) {
+      res.status(400).json({ error: 'Saisissez un NIF/STAT malgache ou un SIREN/nom de société (3 à 100 caractères).' });
       return;
     }
 
@@ -1333,7 +1684,8 @@ ${stepFormat}`;
 
     try {
       const apiRes = await fetch(
-        `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&per_page=5`
+        `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&per_page=5`,
+        { signal: AbortSignal.timeout(8000) }
       );
       if (!apiRes.ok) {
         res.json({ results: [] });
@@ -1363,42 +1715,42 @@ ${stepFormat}`;
   });
 
   // Server-authoritative payment verification & optional Stripe Checkout integration
-  app.post('/api/payments/checkout', async (req: Request, res: Response) => {
-    const { kind, loyaltyActive, loyaltyExp, diamondPublicationsCount, userEmail } = req.body as {
+  app.post('/api/payments/checkout', sensitiveApiLimiter, async (req: Request, res: Response) => {
+    const verifiedUser = await verifyFirebaseIdToken(req.headers.authorization);
+    if (!verifiedUser) {
+      res.status(401).json({ error: 'Authentification requise pour initier un paiement.' });
+      return;
+    }
+
+    const { kind } = (req.body || {}) as {
       kind?: 'publication' | 'loyalty';
-      loyaltyActive?: boolean;
-      loyaltyExp?: number;
-      diamondPublicationsCount?: number;
-      userEmail?: string;
     };
+
+    if (kind !== 'publication' && kind !== 'loyalty') {
+      res.status(400).json({ error: 'Type de paiement invalide.' });
+      return;
+    }
 
     const basePrice = 29.99;
     let authoritativeAmount = 39.99;
 
     if (kind !== 'loyalty') {
-      const exp = Number(loyaltyExp) || 0;
-      const isActive = Boolean(loyaltyActive);
-      const count = Math.max(0, Number(diamondPublicationsCount) || 0);
+      // Never trust client-supplied loyaltyExp or loyaltyActive: fetch verified user state from Firestore
+      const serverLoyalty = await fetchUserLoyaltyFromFirestore(verifiedUser);
+      const exp = serverLoyalty.loyaltyExp;
+      const isActive = serverLoyalty.loyaltyActive;
+      const isPromoPeriod =
+        String(process.env.PROMO_PERIOD_ACTIVE || process.env.VITE_PROMO_PERIOD_ACTIVE || '').toLowerCase() ===
+        'true';
+
       let discountPct = 0;
       if (isActive) {
-        if (exp >= 120) discountPct = 45;
-        else if (exp >= 60) discountPct = 23;
-        else if (exp >= 30) discountPct = 17;
-        else discountPct = 10;
+        if (exp >= 120) discountPct = isPromoPeriod ? 50 : 35;
+        else if (exp >= 60) discountPct = isPromoPeriod ? 30 : 23;
+        else if (exp >= 30) discountPct = isPromoPeriod ? 22 : 17;
+        else discountPct = isPromoPeriod ? 15 : 10;
       }
-      const isFree5th = isActive && exp >= 120 && (count + 1) % 5 === 0;
-      authoritativeAmount = isFree5th
-        ? 0
-        : Math.round(basePrice * (1 - discountPct / 100) * 100) / 100;
-    }
-
-    if (authoritativeAmount === 0) {
-      res.json({
-        mode: 'diamond_free',
-        verifiedAmount: 0,
-        transactionId: `SP-DIAMOND-FREE-${Date.now()}`,
-      });
-      return;
+      authoritativeAmount = Math.round(basePrice * (1 - discountPct / 100) * 100) / 100;
     }
 
     const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -1419,7 +1771,7 @@ ${stepFormat}`;
           String(Math.round(authoritativeAmount * 100))
         );
         params.append('line_items[0][quantity]', '1');
-        if (userEmail) params.append('customer_email', userEmail);
+        if (verifiedUser.email) params.append('customer_email', verifiedUser.email);
 
         const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
           method: 'POST',
@@ -1428,6 +1780,7 @@ ${stepFormat}`;
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: params.toString(),
+          signal: AbortSignal.timeout(8000),
         });
         const stripeJson = (await stripeRes.json()) as { id?: string; url?: string };
         if (stripeRes.ok && stripeJson.url) {

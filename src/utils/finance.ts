@@ -3,6 +3,9 @@ import { LoyaltyTier, User } from '../types';
 export const BASE_PUBLICATION_PRICE = 29.99;
 export const LOYALTY_ACTIVATION_PRICE = 39.99;
 export const EXP_PER_DOSSIER = 10;
+export const PROMO_PERIOD_ACTIVE =
+  String(import.meta.env.VITE_PROMO_PERIOD_ACTIVE || '').toLowerCase() === 'true';
+export const DIAMOND_PROMO_DISCOUNT_PCT = 50;
 
 const OWNER_GOLD_EMAILS = ['solvapact.vercel.app@gmail.com', 'hugolaumonier@gmail.com'];
 
@@ -46,6 +49,7 @@ export interface LoyaltyStatus {
   expToNextTier: number;
   isDiamond: boolean;
   diamondPublicationsCount: number;
+  isPromoPeriod: boolean;
   isFreePublicationNow: boolean;
   dossiersUntilFreePublication: number | null;
 }
@@ -69,6 +73,7 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
       expToNextTier: 0,
       isDiamond: false,
       diamondPublicationsCount: 0,
+      isPromoPeriod: PROMO_PERIOD_ACTIVE,
       isFreePublicationNow: false,
       dossiersUntilFreePublication: null,
     };
@@ -77,7 +82,7 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
   let tier: LoyaltyTier = 'bronze';
   let label = 'Bronze';
   let badgeTitle = 'Membre Vérifié';
-  let discountPct = 10;
+  let discountPct = PROMO_PERIOD_ACTIVE ? 15 : 10;
   let nextTierLabel: string | null = 'Silver (-17 %)';
   let nextTierExp: number | null = 30;
 
@@ -85,36 +90,28 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
     tier = 'diamond';
     label = 'Diamond';
     badgeTitle = 'Membre Prestigieux Officiel';
-    discountPct = 45;
+    discountPct = PROMO_PERIOD_ACTIVE ? DIAMOND_PROMO_DISCOUNT_PCT : 35;
     nextTierLabel = null;
     nextTierExp = null;
   } else if (exp >= 60) {
     tier = 'gold';
     label = 'Gold';
     badgeTitle = 'Membre Précieux';
-    discountPct = 23;
-    nextTierLabel = 'Diamond (-45 % + 1 dossier offert / 5)';
+    discountPct = PROMO_PERIOD_ACTIVE ? 30 : 23;
+    nextTierLabel = 'Diamond (-35 % permanents + promos jusqu’à -50 %)';
     nextTierExp = 120;
   } else if (exp >= 30) {
     tier = 'silver';
     label = 'Silver';
     badgeTitle = 'Membre Fidèle';
-    discountPct = 17;
+    discountPct = PROMO_PERIOD_ACTIVE ? 22 : 17;
     nextTierLabel = 'Gold (-23 %)';
     nextTierExp = 60;
   }
 
   const isDiamond = tier === 'diamond';
-  const isFreePublicationNow = isDiamond && (diamondCount + 1) % 5 === 0;
-  const dossiersUntilFreePublication = isDiamond
-    ? isFreePublicationNow
-      ? 0
-      : 5 - ((diamondCount + 1) % 5)
-    : null;
-
-  const discountedPrice =
+  const publicationPrice =
     Math.round(BASE_PUBLICATION_PRICE * (1 - discountPct / 100) * 100) / 100;
-  const publicationPrice = isFreePublicationNow ? 0 : discountedPrice;
 
   return {
     active: true,
@@ -129,24 +126,13 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
     expToNextTier: nextTierExp ? Math.max(0, nextTierExp - exp) : 0,
     isDiamond,
     diamondPublicationsCount: diamondCount,
-    isFreePublicationNow,
-    dossiersUntilFreePublication,
+    isPromoPeriod: PROMO_PERIOD_ACTIVE,
+    isFreePublicationNow: false,
+    dossiersUntilFreePublication: null,
   };
 }
 
-export function getLoyaltyNameColorClass(tier?: LoyaltyTier, darkBackground = false): string {
-  if (tier === 'diamond') {
-    return darkBackground ? 'text-cyan-300 font-extrabold' : 'text-cyan-600 font-extrabold';
-  }
-  if (tier === 'gold') {
-    return darkBackground ? 'text-amber-300 font-bold' : 'text-amber-500 font-bold';
-  }
-  if (tier === 'silver') {
-    return darkBackground ? 'text-slate-300 font-bold' : 'text-slate-500 font-bold';
-  }
-  if (tier === 'bronze') {
-    return darkBackground ? 'text-orange-400 font-bold' : 'text-amber-800 font-bold';
-  }
+export function getLoyaltyNameColorClass(_tier?: LoyaltyTier, darkBackground = false): string {
   return darkBackground ? 'text-white font-semibold' : 'text-slate-900 font-semibold';
 }
 

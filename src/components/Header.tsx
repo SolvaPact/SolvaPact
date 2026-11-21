@@ -3,6 +3,7 @@ import { ActiveTab, User, Dossier } from '../types';
 import { getLoyaltyNameColorClass, getLoyaltyStatus } from '../utils/finance';
 import { PlusCircle, LogOut, HelpCircle, Award, Compass, BarChart3, Send } from 'lucide-react';
 import solvapactLogo from '../assets/images/solvapact_logo_1793983769514.jpg';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -37,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   const nameColorClass = getLoyaltyNameColorClass(loyalty.tier, false);
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-orange-200/70">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 h-16">
           {/* Zone 1: Wordmark & Logo Madagascar */}
@@ -105,14 +106,14 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('autre')}
-              className={`hover:text-rose-700 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
+              className={`hover:text-orange-600 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
                 activeTab === 'autre'
-                  ? 'text-rose-800 font-bold border-b-2 border-rose-700'
+                  ? 'text-orange-600 font-bold border-b-2 border-orange-600'
                   : ''
               }`}
             >
               <span>Autres sujets</span>
-              <span className="text-[11px] text-rose-700 font-mono tabular-nums">
+              <span className="text-[11px] text-orange-600 font-mono tabular-nums">
                 ({autreCount})
               </span>
             </button>
@@ -158,9 +159,9 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={() => setActiveTab('aide')}
-              className={`hover:text-blue-900 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
+              className={`hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0 py-1.5 flex items-center gap-1 cursor-pointer ${
                 activeTab === 'aide'
-                  ? 'text-blue-900 font-bold border-b-2 border-blue-900'
+                  ? 'text-emerald-800 font-bold border-b-2 border-emerald-800'
                   : 'text-slate-600'
               }`}
             >
@@ -180,12 +181,17 @@ export const Header: React.FC<HeaderProps> = ({
                   className="hidden sm:flex flex-col text-right text-xs px-2.5 py-1 rounded-xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors cursor-pointer"
                 >
                   {loyalty.active && loyalty.badgeTitle && (
-                    <span className={`${nameColorClass} text-[10px] uppercase tracking-wider leading-none mb-0.5`}>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider leading-none mb-0.5">
                       {loyalty.badgeTitle}
                     </span>
                   )}
-                  <span className={`${nameColorClass} leading-tight max-w-[160px] truncate font-semibold`}>
-                    {currentUser.name}
+                  <span className="inline-flex items-center justify-end gap-1 leading-tight">
+                    <span className={`${nameColorClass} max-w-[148px] truncate`}>
+                      {currentUser.name}
+                    </span>
+                    {loyalty.active && (
+                      <LoyaltyVerifiedBadge tier={loyalty.tier} size="xs" />
+                    )}
                   </span>
                   <span className="text-[10px] text-slate-500 truncate max-w-[165px]">
                     {currentUser.role === 'investisseur' ? 'Investisseur' : 'Demandeur'} · {currentUser.city}
@@ -238,7 +244,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Primary Action Button */}
             <button
               onClick={onOpenDeposit}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-orange-600 rounded-lg hover:bg-orange-500 transition-colors whitespace-nowrap shrink-0 shadow-sm cursor-pointer"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               <span>Déposer un dossier</span>
@@ -248,7 +254,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Tablet / Mobile subbar */}
-      <div className="xl:hidden flex items-center justify-start sm:justify-around overflow-x-auto thin-scrollbar border-t border-slate-200 px-2 py-1.5 bg-slate-50 text-xs gap-1.5">
+      <div className="xl:hidden flex items-center justify-start sm:justify-around overflow-x-auto thin-scrollbar border-t border-orange-100 px-2 py-1.5 bg-[#faf6f0] text-xs gap-1.5">
         <button
           onClick={() => setActiveTab('decouverte')}
           className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
@@ -272,7 +278,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => setActiveTab('autre')}
           className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
-            activeTab === 'autre' ? 'font-bold text-rose-800 border-b-2 border-rose-700' : 'text-slate-600'
+            activeTab === 'autre' ? 'font-bold text-orange-600 border-b-2 border-orange-600' : 'text-slate-600'
           }`}
         >
           Autres ({autreCount})
@@ -333,7 +339,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => setActiveTab('aide')}
           className={`min-h-[36px] py-1 px-2.5 whitespace-nowrap cursor-pointer ${
-            activeTab === 'aide' ? 'font-bold text-blue-900 border-b-2 border-blue-900' : 'text-slate-600'
+            activeTab === 'aide' ? 'font-bold text-emerald-800 border-b-2 border-emerald-800' : 'text-slate-600'
           }`}
         >
           Aide &amp; IA

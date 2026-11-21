@@ -3,6 +3,7 @@ import { LoyaltyTier } from '../types';
 
 interface CosmicStarfieldCanvasProps {
   tier: LoyaltyTier;
+  variant?: 'cosmic' | 'madagascar';
 }
 
 interface TwinkleStar {
@@ -26,7 +27,10 @@ interface ShootingStar {
   width: number;
 }
 
-function getTierStarColors(tier: LoyaltyTier): {
+function getTierStarColors(
+  tier: LoyaltyTier,
+  variant: 'cosmic' | 'madagascar'
+): {
   primary: string;
   secondary: string;
   glow: string;
@@ -57,15 +61,24 @@ function getTierStarColors(tier: LoyaltyTier): {
         glow: 'rgba(251, 146, 60, 0.85)',
       };
     default:
-      return {
-        primary: '#60a5fa', // Electric Blue
-        secondary: '#bfdbfe',
-        glow: 'rgba(96, 165, 250, 0.8)',
-      };
+      return variant === 'madagascar'
+        ? {
+            primary: '#34d399', // Madagascar Emerald
+            secondary: '#fde68a',
+            glow: 'rgba(249, 115, 22, 0.75)',
+          }
+        : {
+            primary: '#60a5fa', // Electric Blue
+            secondary: '#bfdbfe',
+            glow: 'rgba(96, 165, 250, 0.8)',
+          };
   }
 }
 
-export const CosmicStarfieldCanvas: React.FC<CosmicStarfieldCanvasProps> = ({ tier }) => {
+export const CosmicStarfieldCanvas: React.FC<CosmicStarfieldCanvasProps> = ({
+  tier,
+  variant = 'cosmic',
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -74,7 +87,7 @@ export const CosmicStarfieldCanvas: React.FC<CosmicStarfieldCanvasProps> = ({ ti
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const palette = getTierStarColors(tier);
+    const palette = getTierStarColors(tier, variant);
     let animationId = 0;
     let width = 0;
     let height = 0;
@@ -138,7 +151,7 @@ export const CosmicStarfieldCanvas: React.FC<CosmicStarfieldCanvasProps> = ({ ti
       frame++;
       ctx.clearRect(0, 0, width, height);
 
-      // Subtle futuristic cosmic blue nebula aura
+      // Subtle background nebula aura
       const nebula = ctx.createRadialGradient(
         width * 0.5,
         height * 0.25,
@@ -147,9 +160,15 @@ export const CosmicStarfieldCanvas: React.FC<CosmicStarfieldCanvasProps> = ({ ti
         height * 0.45,
         Math.max(width, height) * 0.75
       );
-      nebula.addColorStop(0, 'rgba(30, 88, 200, 0.28)');
-      nebula.addColorStop(0.5, 'rgba(15, 45, 115, 0.14)');
-      nebula.addColorStop(1, 'rgba(3, 10, 32, 0)');
+      if (variant === 'madagascar') {
+        nebula.addColorStop(0, 'rgba(0, 166, 81, 0.20)');
+        nebula.addColorStop(0.5, 'rgba(252, 61, 50, 0.12)');
+        nebula.addColorStop(1, 'rgba(11, 23, 17, 0)');
+      } else {
+        nebula.addColorStop(0, 'rgba(30, 88, 200, 0.28)');
+        nebula.addColorStop(0.5, 'rgba(15, 45, 115, 0.14)');
+        nebula.addColorStop(1, 'rgba(3, 10, 32, 0)');
+      }
       ctx.fillStyle = nebula;
       ctx.fillRect(0, 0, width, height);
 
@@ -236,7 +255,7 @@ export const CosmicStarfieldCanvas: React.FC<CosmicStarfieldCanvasProps> = ({ ti
       window.removeEventListener('resize', resize);
       window.cancelAnimationFrame(animationId);
     };
-  }, [tier]);
+  }, [tier, variant]);
 
   return (
     <canvas

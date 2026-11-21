@@ -1137,3 +1137,82 @@ export async function updateDirectSubmissionStatusInFirestore(
     handleFirestoreError(err, OperationType.UPDATE, `direct_submissions/${cleanId}`);
   }
 }
+
+export async function deleteDirectSubmissionInFirestore(submissionId: string): Promise<void> {
+  const cleanId = sanitizeId(submissionId);
+  try {
+    await deleteDoc(doc(db, 'direct_submissions', cleanId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `direct_submissions/${cleanId}`);
+  }
+}
+
+export async function deleteInvestorDirectoryEntryInFirestore(
+  investorUid: string,
+  alsoRevokeUserConsent = true
+): Promise<void> {
+  const cleanUid = sanitizeId(investorUid);
+  try {
+    await deleteDoc(doc(db, 'investor_directory', cleanUid));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `investor_directory/${cleanUid}`);
+  }
+
+  if (alsoRevokeUserConsent) {
+    try {
+      const userRef = doc(db, 'users', cleanUid);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        await updateDoc(userRef, {
+          investorDirectoryConsent: false,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch {
+      // Non-blocking: directory entry is already deleted
+    }
+  }
+}
+
+export function subscribeToAllDirectSubmissionsForAdmin(
+  onUpdate: (allSubmissions: DirectSubmission[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, 'direct_submissions'),
+    (snap) => {
+      const list: DirectSubmission[] = snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          senderUid: String(data.senderUid || ''),
+          senderName: String(data.senderName || 'Membre'),
+          senderEmail: String(data.senderEmail || ''),
+          senderPhone: typeof data.senderPhone === 'string' ? data.senderPhone : undefined,
+          senderCity: String(data.senderCity || 'Antananarivo'),
+          investorUid: String(data.investorUid || ''),
+          investorName: String(data.investorName || 'Investisseur'),
+          investorEmail: String(data.investorEmail || ''),
+          dossierId: typeof data.dossierId === 'string' ? data.dossierId : undefined,
+          dossierTitle: String(data.dossierTitle || ''),
+          dossierType: data.dossierType === 'autre' ? 'autre' : 'investissement',
+          category: String(data.category || ''),
+          amountRequested: Number(data.amountRequested || 0),
+          termMonths: Number(data.termMonths || 36),
+          investmentReturnMode:
+            (data.investmentReturnMode as DirectSubmission['investmentReturnMode']) || undefined,
+          equityPercentage:
+            typeof data.equityPercentage === 'number' ? data.equityPercentage : undefined,
+          dossierSummary: String(data.dossierSummary || ''),
+          personalMessage: String(data.personalMessage || ''),
+          status: (data.status as DirectSubmission['status']) || 'envoye',
+          createdAt: formatTimestampFr(data.createdAt),
+        };
+      });
+      onUpdate(list);
+    },
+    (err) => {
+      console.error('Admin direct_submissions subscription error:', err);
+      onUpdate([]);
+    }
+  );
+}

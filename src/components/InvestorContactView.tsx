@@ -5,13 +5,18 @@ import {
   InvestorDirectoryEntry,
   User,
 } from '../types';
-import { updateDirectSubmissionStatusInFirestore } from '../services/firestoreService';
+import {
+  deleteDirectSubmissionInFirestore,
+  deleteInvestorDirectoryEntryInFirestore,
+  updateDirectSubmissionStatusInFirestore,
+} from '../services/firestoreService';
 import {
   formatAriaryApprox,
   formatEuro,
   getLoyaltyNameColorClass,
 } from '../utils/finance';
 import { InvestorProfileSettingsModal } from './InvestorProfileSettingsModal';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 import {
   Search,
   MapPin,
@@ -32,6 +37,7 @@ import {
   PlusCircle,
   ExternalLink,
   SlidersHorizontal,
+  Trash2,
 } from 'lucide-react';
 
 interface InvestorContactViewProps {
@@ -39,12 +45,15 @@ interface InvestorContactViewProps {
   investors: InvestorDirectoryEntry[];
   incomingSubmissions: DirectSubmission[];
   sentSubmissions: DirectSubmission[];
+  adminSubmissions?: DirectSubmission[];
+  isAdmin?: boolean;
   dossiers: Dossier[];
   onOpenAuth: () => void;
   onUserUpdated: (user: User) => void;
   onSendDossierToInvestor: (investor: InvestorDirectoryEntry) => void;
   onSelectDossier: (dossier: Dossier) => void;
   onOpenDeposit: () => void;
+  onInvestorRemoved?: (uid: string) => void;
 }
 
 const STATUS_BADGES: Record<
@@ -57,7 +66,7 @@ const STATUS_BADGES: Record<
   },
   consulte: {
     label: 'Consulté',
-    className: 'bg-blue-50 text-blue-800 border-blue-200',
+    className: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   interesse: {
     label: 'Investisseur intéressé',
@@ -74,12 +83,15 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
   investors,
   incomingSubmissions,
   sentSubmissions,
+  adminSubmissions = [],
+  isAdmin = false,
   dossiers,
   onOpenAuth,
   onUserUpdated,
   onSendDossierToInvestor,
   onSelectDossier,
   onOpenDeposit,
+  onInvestorRemoved,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [cityFilter, setCityFilter] = useState('all');
@@ -87,6 +99,11 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [updatingSubId, setUpdatingSubId] = useState<string | null>(null);
+  const [confirmDeleteSubId, setConfirmDeleteSubId] = useState<string | null>(null);
+  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
+  const [confirmDeleteInvestorUid, setConfirmDeleteInvestorUid] = useState<string | null>(null);
+  const [deletingInvestorUid, setDeletingInvestorUid] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const filteredIncoming = incomingSubmissions.filter((sub) => {
     if (inboxFilter === 'envoye') return sub.status === 'envoye' || sub.status === 'consulte';
@@ -133,6 +150,49 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
       setUpdatingSubId(null);
     }
   };
+
+  const handleDeleteSubmission = async (submissionId: string) => {
+    setActionError(null);
+    setDeletingSubId(submissionId);
+    try {
+      await deleteDirectSubmissionInFirestore(submissionId);
+      setConfirmDeleteSubId((prev) => (prev === submissionId ? null : prev));
+    } catch (err) {
+      console.error('Error deleting direct submission:', err);
+      setActionError("Impossible de supprimer ce dossier pour le moment. Vérifiez vos droits d'accès.");
+    } finally {
+      setDeletingSubId(null);
+    }
+  };
+
+  const handleDeleteInvestor = async (inv: InvestorDirectoryEntry) => {
+    setActionError(null);
+    setDeletingInvestorUid(inv.uid);
+    try {
+      await deleteInvestorDirectoryEntryInFirestore(inv.uid, true);
+      setConfirmDeleteInvestorUid((prev) => (prev === inv.uid ? null : prev));
+      onInvestorRemoved?.(inv.uid);
+      if (currentUser && (currentUser.uid === inv.uid || currentUser.id === inv.uid)) {
+        onUserUpdated({
+          ...currentUser,
+          investorDirectoryConsent: false,
+        });
+      }
+    } catch (err) {
+      console.error('Error deleting investor directory entry:', err);
+      setActionError("Impossible de supprimer cette fiche entrepreneur/investisseur.");
+    } finally {
+      setDeletingInvestorUid(null);
+    }
+  };
+
+  const adminExtraSubmissions = isAdmin
+    ? adminSubmissions.filter(
+        (sub) =>
+          !incomingSubmissions.some((s) => s.id === sub.id) &&
+          !sentSubmissions.some((s) => s.id === sub.id)
+      )
+    : [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -208,6 +268,19 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
         </div>
       ) : (
         <>
+          {actionError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium flex items-center justify-between gap-2">
+              <span>{actionError}</span>
+              <button
+                type="button"
+                onClick={() => setActionError(null)}
+                className="underline font-bold shrink-0 cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          )}
+
           {/* Investor Incoming Dossiers Inbox */}
           {(currentUser.role === 'investisseur' || incomingSubmissions.length > 0) && (
             <section className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-xs space-y-4">
@@ -370,9 +443,9 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
                                   type="button"
                                   disabled={updatingSubId === sub.id}
                                   onClick={() => handleStatusChange(sub.id, 'consulte')}
-                                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 border border-slate-300 text-[11px] font-semibold text-slate-700 inline-flex items-center gap-1 cursor-pointer"
+                                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-orange-50 border border-slate-300 text-[11px] font-semibold text-slate-700 inline-flex items-center gap-1 cursor-pointer"
                                 >
-                                  <Eye className="w-3 h-3 text-blue-600" />
+                                  <Eye className="w-3 h-3 text-orange-600" />
                                   <span>Marquer consulté</span>
                                 </button>
                               )}
@@ -398,6 +471,38 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
                               </button>
                             </>
                           )}
+                          {confirmDeleteSubId === sub.id ? (
+                            <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg">
+                              <span className="text-[10px] font-bold text-rose-800">
+                                Supprimer ?
+                              </span>
+                              <button
+                                type="button"
+                                disabled={deletingSubId === sub.id}
+                                onClick={() => handleDeleteSubmission(sub.id)}
+                                className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold cursor-pointer disabled:opacity-60"
+                              >
+                                {deletingSubId === sub.id ? '...' : 'Oui'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteSubId(null)}
+                                className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                              >
+                                Non
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteSubId(sub.id)}
+                              className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-[11px] font-medium text-rose-600 inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Supprimer</span>
+                            </button>
+                          )}
+
                           {linkedDossier && (
                             <button
                               type="button"
@@ -468,10 +573,11 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className={`text-base font-bold ${nameColor}`}>
-                              {inv.displayName}
+                            <h3 className={`text-base font-bold ${nameColor} inline-flex items-center gap-1.5 flex-wrap`}>
+                              <span>{inv.displayName}</span>
+                              <LoyaltyVerifiedBadge tier={inv.loyaltyTier || 'none'} size="xs" />
                               {isMe && (
-                                <span className="ml-1.5 text-[10px] font-semibold text-slate-500">
+                                <span className="text-[10px] font-semibold text-slate-500">
                                   (Vous)
                                 </span>
                               )}
@@ -562,7 +668,7 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => onSendDossierToInvestor(inv)}
@@ -571,6 +677,41 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
                           <Send className="w-3.5 h-3.5" />
                           <span>Envoyer mon dossier</span>
                         </button>
+
+                        {(isAdmin || isMe) && (
+                          confirmDeleteInvestorUid === inv.uid ? (
+                            <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-2 rounded-xl shrink-0">
+                              <span className="text-[11px] font-bold text-rose-800">
+                                Supprimer ?
+                              </span>
+                              <button
+                                type="button"
+                                disabled={deletingInvestorUid === inv.uid}
+                                onClick={() => handleDeleteInvestor(inv)}
+                                className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold cursor-pointer disabled:opacity-60"
+                              >
+                                {deletingInvestorUid === inv.uid ? '...' : 'Oui'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteInvestorUid(null)}
+                                className="px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                              >
+                                Non
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteInvestorUid(inv.uid)}
+                              title="Supprimer cette fiche de l'annuaire"
+                              className="py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Supprimer</span>
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
                   );
@@ -640,11 +781,110 @@ export const InvestorContactView: React.FC<InvestorContactViewProps> = ({
                           {formatEuro(sub.amountRequested)}
                         </span>
                       </div>
-                      <span
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-md border shrink-0 ${badge.className}`}
-                      >
-                        {badge.label}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-md border shrink-0 ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                        {confirmDeleteSubId === sub.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
+                            <button
+                              type="button"
+                              disabled={deletingSubId === sub.id}
+                              onClick={() => handleDeleteSubmission(sub.id)}
+                              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold cursor-pointer disabled:opacity-60"
+                            >
+                              {deletingSubId === sub.id ? '...' : 'Oui'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteSubId(null)}
+                              className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                            >
+                              Non
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteSubId(sub.id)}
+                            title="Supprimer ce dossier envoyé"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Admin View: All other direct submissions on platform */}
+          {adminExtraSubmissions.length > 0 && (
+            <section className="bg-white rounded-2xl border border-orange-200 p-6 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <ShieldCheck className="w-4 h-4 text-orange-600" />
+                <h2 className="text-base font-extrabold text-slate-900">
+                  Administration · Tous les autres dossiers directs ({adminExtraSubmissions.length})
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {adminExtraSubmissions.map((sub) => {
+                  const badge = STATUS_BADGES[sub.status] || STATUS_BADGES.envoye;
+                  return (
+                    <div
+                      key={sub.id}
+                      className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 block truncate">
+                          {sub.dossierTitle}
+                        </span>
+                        <span className="text-[11px] text-slate-500 block truncate">
+                          De <strong>{sub.senderName}</strong> → <strong>{sub.investorName}</strong> ·{' '}
+                          {formatEuro(sub.amountRequested)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-md border shrink-0 ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                        {confirmDeleteSubId === sub.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg">
+                            <button
+                              type="button"
+                              disabled={deletingSubId === sub.id}
+                              onClick={() => handleDeleteSubmission(sub.id)}
+                              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold cursor-pointer disabled:opacity-60"
+                            >
+                              {deletingSubId === sub.id ? '...' : 'Oui'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteSubId(null)}
+                              className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+                            >
+                              Non
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteSubId(sub.id)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[11px] font-bold text-rose-700 inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Supprimer</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

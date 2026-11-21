@@ -10,6 +10,23 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+export async function getAuthHeaders(
+  extra: Record<string, string> = {}
+): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { ...extra };
+  if (auth.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+  }
+  return headers;
+}
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',

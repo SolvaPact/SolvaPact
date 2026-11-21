@@ -136,7 +136,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+            <TrendingUp className="w-3.5 h-3.5 text-orange-600" />
             <span>Rendement Investisseur</span>
           </button>
         </div>
@@ -370,17 +370,17 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                       value={investAmountInput}
                       onChange={(e) => handleInvestInputChange(e.target.value)}
                       onBlur={handleInvestInputBlur}
-                      className="w-32 sm:w-36 pl-3 pr-7 py-1.5 text-sm font-bold text-indigo-950 bg-indigo-50/40 border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 text-right tabular-nums"
+                      className="w-32 sm:w-36 pl-3 pr-7 py-1.5 text-sm font-bold text-orange-950 bg-orange-50/40 border border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-600 text-right tabular-nums"
                     />
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-indigo-600">
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-orange-600">
                       €
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-base sm:text-lg font-bold text-indigo-900 tabular-nums block leading-tight">
+                    <span className="text-base sm:text-lg font-bold text-orange-900 tabular-nums block leading-tight">
                       {formatEuro(investAmount)}
                     </span>
-                    <span className="text-[11px] font-medium text-orange-700 tabular-nums">
+                    <span className="text-[11px] font-medium text-emerald-700 tabular-nums">
                       {formatAriaryApprox(investAmount)}
                     </span>
                   </div>
@@ -393,7 +393,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 step="500"
                 value={Math.min(50000, Math.max(1000, investAmount))}
                 onChange={(e) => handleInvestSliderChange(Number(e.target.value))}
-                className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                className="w-full accent-orange-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
               />
               <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                 <span>1 000 €</span>
@@ -407,7 +407,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Taux d'intérêt annuel brut souhaité
                 </label>
-                <span className="text-lg font-bold text-indigo-900 tabular-nums">
+                <span className="text-lg font-bold text-orange-900 tabular-nums">
                   {formatPct(investRate)}
                 </span>
               </div>
@@ -418,7 +418,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 step="0.5"
                 value={investRate}
                 onChange={(e) => setInvestRate(Number(e.target.value))}
-                className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                className="w-full accent-orange-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
               />
               <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                 <span>3.0 % (Faible risque)</span>
@@ -443,7 +443,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
                 step="6"
                 value={investTerm}
                 onChange={(e) => setInvestTerm(Number(e.target.value))}
-                className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                className="w-full accent-orange-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
               />
               <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                 <span>6 mois</span>
@@ -452,27 +452,27 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-indigo-50/70 rounded-xl border border-indigo-200/80 text-xs text-indigo-950 space-y-1.5">
+            <div className="p-4 bg-orange-50/70 rounded-xl border border-orange-200/80 text-xs text-orange-950 space-y-1.5">
               <p className="font-bold flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                <ShieldCheck className="w-4 h-4 text-orange-600" />
                 Garanties et Sûretés Réelles
               </p>
-              <p className="text-[11px] text-indigo-900 leading-relaxed">
+              <p className="text-[11px] text-orange-900 leading-relaxed">
                 Chaque engagement donne lieu à un contrat de prêt ou pacte d'associés signé sous seing privé (Articles 1892 et 2044 du Code Civil) assorti le cas échéant de sûretés (caution solidaire, nantissement ou engagement de cession sur salaire).
               </p>
             </div>
           </div>
 
-          <div className="lg:col-span-5 bg-gradient-to-br from-indigo-50/60 to-slate-50 border border-indigo-200/80 rounded-2xl p-6 space-y-6">
+          <div className="lg:col-span-5 bg-gradient-to-br from-orange-50/70 to-amber-50/40 border border-orange-200/80 rounded-2xl p-6 space-y-6">
             <div>
-              <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider block mb-1">
+              <span className="text-[11px] font-bold text-orange-900 uppercase tracking-wider block mb-1">
                 Rentrée mensuelle d'argent
               </span>
-              <p className="text-3xl font-extrabold text-indigo-950 tabular-nums">
+              <p className="text-3xl font-extrabold text-orange-950 tabular-nums">
                 +{formatEuro(investMonthly)}{' '}
                 <span className="text-xs font-normal text-slate-500">/ mois</span>
               </p>
-              <p className="text-xs font-semibold text-orange-700 tabular-nums mt-0.5">
+              <p className="text-xs font-semibold text-emerald-700 tabular-nums mt-0.5">
                 +{formatAriaryApprox(investMonthly)} / mois
               </p>
               <p className="text-xs text-slate-600 mt-1">
@@ -480,7 +480,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 py-4 border-y border-indigo-200/70 text-xs">
+            <div className="grid grid-cols-2 gap-4 py-4 border-y border-orange-200/70 text-xs">
               <div>
                 <span className="text-slate-500 block">Intérêts bruts totaux</span>
                 <span className="text-base font-bold text-emerald-700 tabular-nums block">
@@ -493,7 +493,7 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
 
               <div>
                 <span className="text-slate-500 block">Gain net (100 % direct)</span>
-                <span className="text-base font-bold text-indigo-900 tabular-nums block">
+                <span className="text-base font-bold text-orange-900 tabular-nums block">
                   +{formatEuro(investNetProfit)}
                 </span>
                 <span className="text-[11px] text-slate-500 tabular-nums">
@@ -502,14 +502,14 @@ export const FinanceCalculator: React.FC<FinanceCalculatorProps> = ({
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-white border border-indigo-100 text-xs space-y-2">
+            <div className="p-4 rounded-xl bg-white border border-orange-100 text-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">Capital initial remboursé :</span>
                 <span className="font-mono font-bold text-slate-900">{formatEuro(investAmount)}</span>
               </div>
               <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                 <span className="text-slate-600">Total net récupéré :</span>
-                <span className="font-mono font-bold text-indigo-700 text-sm">
+                <span className="font-mono font-bold text-orange-700 text-sm">
                   {formatEuro(investTotalCashBack)}
                 </span>
               </div>

@@ -12,6 +12,7 @@ import {
 } from '../utils/finance';
 import { fetchDossierAttachments } from '../services/firestoreService';
 import { useModalEscape } from '../utils/useModalEscape';
+import { LoyaltyVerifiedBadge } from './LoyaltyVerifiedBadge';
 import {
   X,
   ShieldCheck,
@@ -112,7 +113,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
             <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
               <span
                 className={
-                  dossier.type === 'investissement' ? 'text-emerald-700' : 'text-rose-700'
+                  dossier.type === 'investissement' ? 'text-emerald-700' : 'text-orange-600'
                 }
               >
                 {dossier.type === 'investissement'
@@ -143,7 +144,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
             onClick={() => setActiveTab('details')}
             className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'details'
-                ? 'border-slate-900 text-slate-900'
+                ? 'border-orange-600 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -153,7 +154,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
             onClick={() => setActiveTab('echeancier')}
             className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'echeancier'
-                ? 'border-slate-900 text-slate-900'
+                ? 'border-orange-600 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -166,7 +167,7 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
             onClick={() => setActiveTab('documents')}
             className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'documents'
-                ? 'border-slate-900 text-slate-900'
+                ? 'border-orange-600 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -378,17 +379,21 @@ export const DossierDetailModal: React.FC<DossierDetailModalProps> = ({
                         {(dossier.applicant.loyaltyTitle ||
                           dossier.isDiamondPriority ||
                           dossier.applicant.loyaltyTier === 'diamond') && (
-                          <span
-                            className={`${getLoyaltyNameColorClass(
-                              dossier.applicant.loyaltyTier,
-                              false
-                            )} text-[10px] uppercase tracking-wider block`}
-                          >
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                             {dossier.applicant.loyaltyTitle || 'Membre Prestigieux Officiel'}
                           </span>
                         )}
-                        <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
-                          {dossier.applicant.pseudonym}
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          <span className={getLoyaltyNameColorClass(dossier.applicant.loyaltyTier, false)}>
+                            {dossier.applicant.pseudonym}
+                          </span>
+                          <LoyaltyVerifiedBadge
+                            tier={
+                              dossier.applicant.loyaltyTier ||
+                              (dossier.isDiamondPriority ? 'diamond' : 'none')
+                            }
+                            size="xs"
+                          />
                         </span>
                       </div>
                     </div>

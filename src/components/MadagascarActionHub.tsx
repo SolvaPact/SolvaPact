@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Calculator,
   FileCheck2,
+  FilePlus2,
   HelpCircle,
   Send,
   ShieldCheck,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 
 interface MadagascarActionHubProps {
+  onOpenCreateDossier: () => void;
   onOpenSimulateur: () => void;
   onOpenContactInvestors: () => void;
   onOpenHelp: () => void;
@@ -19,6 +21,7 @@ interface MadagascarActionHubProps {
 }
 
 export const MadagascarActionHub: React.FC<MadagascarActionHubProps> = ({
+  onOpenCreateDossier,
   onOpenSimulateur,
   onOpenContactInvestors,
   onOpenHelp,
@@ -86,9 +89,9 @@ export const MadagascarActionHub: React.FC<MadagascarActionHubProps> = ({
                 <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">
                   <FileCheck2 className="w-4 h-4" />
                 </div>
-                <p className="text-xs font-bold text-slate-900">1. Préparation & Vérif</p>
+                <p className="text-xs font-bold text-slate-900">1. Préparation</p>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Rédigez gratuitement avec SolvaSolution IA et appuyez votre sérieux (NIF/STAT ou SIREN).
+                  Création de dossier gratuite par vous-même ou grâce à l&apos;aide de SolvaSolution IA.
                 </p>
               </div>
 
@@ -96,21 +99,57 @@ export const MadagascarActionHub: React.FC<MadagascarActionHubProps> = ({
                 <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
-                <p className="text-xs font-bold text-slate-900">2. Accord sous seing privé</p>
+                <p className="text-xs font-bold text-slate-900">2. Accord/Relation</p>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Négociez directement vos échéances ou parts sociales, puis générez votre contrat privé prêt à signer.
+                  Négociation faite sur le site grâce à votre dossier et vos coordonnées.
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
                   <Smartphone className="w-4 h-4" />
                 </div>
-                <p className="text-xs font-bold text-slate-900">3. Transferts directs</p>
+                <p className="text-xs font-bold text-slate-900">3. Finalisation</p>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Règlements 100 % nets hors site via MVola, Orange Money, Airtel Money ou virement BNI / BOA / SEPA.
+                  Tout ce qui est question de règlement n&apos;est pas géré par le site, mais peut être négocié dessus.
                 </p>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <button
+                type="button"
+                onClick={onOpenCreateDossier}
+                className="p-4 rounded-xl bg-orange-600 hover:bg-orange-500 text-white border border-orange-600 shadow-xs transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <FilePlus2 className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold">Créer mon dossier</p>
+                    <p className="text-[11px] text-orange-100">Préparation 100 % gratuite</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenContactInvestors}
+                className="p-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-200 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <Send className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold text-emerald-950">Prendre contact</p>
+                    <p className="text-[11px] text-emerald-800">Investisseurs &amp; entrepreneurs</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-emerald-700 shrink-0" />
+              </button>
             </div>
           </div>
 
@@ -122,15 +161,6 @@ export const MadagascarActionHub: React.FC<MadagascarActionHubProps> = ({
             >
               <Calculator className="w-3.5 h-3.5 text-orange-400" />
               <span>Ouvrir le simulateur</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenContactInvestors}
-              className="px-4 py-2.5 text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Annuaire des investisseurs</span>
             </button>
 
             <button
