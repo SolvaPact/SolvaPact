@@ -259,14 +259,14 @@ FORMAT D'ÉCRITURE OBLIGATOIRE : Rédige toujours en texte clair, naturel et agr
 4. Mise en relation directe & Accord 100 % net :
    - SolvaPact est uniquement une plateforme de mise en relation. Le bouton « Négocier » en bas d'un dossier publié permet d'échanger en direct avec le créateur (et d'accéder à ses coordonnées partagées), et l'onglet « Prendre contact » permet aux demandeurs de voir la liste des investisseurs consentants (OK pour recevoir des dossiers venant de demandeurs, avec e-mail de contact) et de leur envoyer directement leur dossier.
    - Toute la négociation et tous les virements d'argent (MVola, Orange Money, Airtel Money ou virement bancaire BNI / BOA / SEPA) s'effectuent directement entre les parties en dehors du site. SolvaPact ne détient, ne reçoit et ne transfère jamais les fonds des transactions.
-   - Tous les accords et transferts sont 100 % directs entre membres : SolvaPact vit uniquement grâce aux frais de publication (29,99 €) et au Compte Fidélité (80 €), sans intervenir dans la circulation des fonds hors site.
+   - Tous les accords et transferts sont 100 % directs entre membres : SolvaPact vit uniquement grâce aux frais de publication (29,99 €) et au Compte Fidélité (39,99 €), sans intervenir dans la circulation des fonds hors site.
    - Quand un accord est conclu, le créateur du dossier peut cliquer sur « Marquer ce dossier comme accepté » sur son dossier.
-5. Compte Fidélité SolvaPact (80 € en une seule fois à vie) :
+5. Compte Fidélité SolvaPact (39,99 € en une seule fois à vie) :
    - Chaque dossier publié rapporte +10 EXP.
-   - Palier Bronze (50 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
-   - Palier Silver (150 EXP, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
-   - Palier Gold (300 EXP, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
-   - Palier Diamond (500 EXP, titre « Membre Prestigieux Officiel ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
+   - Palier Bronze (de base dès l'activation, 0 EXP, titre « Membre Vérifié ») : -10 % sur la publication (soit 26,99 €) et le nom du compte prend la couleur Bronze.
+   - Palier Silver (30 EXP, soit 3 dossiers publiés, titre « Membre Fidèle ») : -17 % sur la publication (soit 24,89 €) et le nom du compte prend la couleur Silver.
+   - Palier Gold (60 EXP, soit 6 dossiers publiés, titre « Membre Précieux ») : -23 % sur la publication (soit 23,09 €) et le nom du compte prend la couleur Gold.
+   - Palier Diamond (120 EXP, soit 12 dossiers publiés, titre « Membre Prestigieux Officiel ») : -45 % sur la publication (soit 16,49 €), 1 dossier 100 % gratuit (0 €, sans carte bancaire) tous les 5 dossiers publiés en Diamond, mise en avant prioritaire des dossiers en tête de liste, support humain prioritaire, et le nom du compte prend la couleur Diamond.
 6. Cadre légal, réseaux sociaux & contact officiel :
    - Les accords conclus entre membres sont formalisés sous seing privé (force obligatoire des conventions civiles et commerciales).
    - Réseaux sociaux officiels (actualités, conseils et retours d'expérience bienvenus) : Instagram (@solvapact), Facebook (Solva Pact) et LinkedIn (Solva Pact).
@@ -1373,7 +1373,7 @@ ${stepFormat}`;
     };
 
     const basePrice = 29.99;
-    let authoritativeAmount = 80;
+    let authoritativeAmount = 39.99;
 
     if (kind !== 'loyalty') {
       const exp = Number(loyaltyExp) || 0;
@@ -1381,12 +1381,12 @@ ${stepFormat}`;
       const count = Math.max(0, Number(diamondPublicationsCount) || 0);
       let discountPct = 0;
       if (isActive) {
-        if (exp >= 500) discountPct = 45;
-        else if (exp >= 300) discountPct = 23;
-        else if (exp >= 150) discountPct = 17;
-        else if (exp >= 50) discountPct = 10;
+        if (exp >= 120) discountPct = 45;
+        else if (exp >= 60) discountPct = 23;
+        else if (exp >= 30) discountPct = 17;
+        else discountPct = 10;
       }
-      const isFree5th = isActive && exp >= 500 && (count + 1) % 5 === 0;
+      const isFree5th = isActive && exp >= 120 && (count + 1) % 5 === 0;
       authoritativeAmount = isFree5th
         ? 0
         : Math.round(basePrice * (1 - discountPct / 100) * 100) / 100;

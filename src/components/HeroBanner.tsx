@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, ShieldCheck, Send, Building2 } from 'lucide-react';
-import heroImage from '../assets/images/madagascar_solvapact_hero_1795018949676.jpg';
+import heroImage from '../assets/images/madagascar_orange_solvapact_1795242743504.jpg';
 
 interface HeroBannerProps {
   onExplore: () => void;
@@ -21,9 +21,9 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   return (
     <div className="relative bg-gradient-to-b from-slate-950 via-[#0f172a] to-[#111c2d] text-white border-b border-orange-500/20 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-12 items-center">
           {/* Left Column: Proposition Madagascar */}
-          <div className="lg:col-span-7 space-y-5">
+          <div className="md:col-span-7 space-y-5">
             <div className="space-y-2.5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-1 rounded-full bg-orange-500" />
@@ -109,19 +109,41 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Madagascar Hero Visual + Signature Floating White Card */}
-          <div className="lg:col-span-5">
-            <div className="relative rounded-2xl overflow-hidden border border-white/15 shadow-2xl bg-slate-900">
+          {/* Right Column: SolvaPact in Madagascar colors above the photo */}
+          <div className="md:col-span-5">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <div className="flex items-center gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-4 w-5 overflow-hidden rounded-[3px] border border-white/25 shadow-xs shrink-0"
+                >
+                  <span className="w-1.5 bg-white" />
+                  <span className="flex-1 flex flex-col">
+                    <span className="h-1/2 bg-[#FC3D32]" />
+                    <span className="h-1/2 bg-[#007E3A]" />
+                  </span>
+                </span>
+                <p className="text-xl sm:text-2xl font-extrabold tracking-tight leading-none">
+                  <span className="text-white">Sol</span>
+                  <span className="text-[#FC3D32]">va</span>
+                  <span className="text-[#00A651]">Pact</span>
+                </p>
+              </div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-orange-300/90">
+                Madagascar
+              </span>
+            </div>
+            <div className="relative rounded-2xl overflow-hidden border border-orange-400/30 shadow-2xl bg-slate-900">
               {!imageError ? (
                 <img
                   src={heroImage}
-                  alt="Entrepreneurs à Antananarivo, Madagascar collaborant sur un projet SolvaPact"
+                  alt="Paysage de Madagascar aux couleurs orange avec le signe SolvaPact en arrière-plan"
                   onError={() => setImageError(true)}
-                  className="w-full h-72 sm:h-80 object-cover"
+                  className="w-full aspect-[4/3] object-cover object-center"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-full h-72 sm:h-80 bg-gradient-to-br from-slate-900 via-emerald-950 to-orange-950 flex flex-col items-center justify-center p-6 text-center space-y-3">
+                <div className="w-full aspect-[4/3] bg-gradient-to-br from-orange-950 via-amber-900 to-slate-900 flex flex-col items-center justify-center p-6 text-center space-y-3">
                   <div className="w-12 h-12 rounded-2xl bg-orange-500/20 border border-orange-400/30 text-orange-300 flex items-center justify-center">
                     <Building2 className="w-6 h-6" />
                   </div>
@@ -131,23 +153,15 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
                   </p>
                 </div>
               )}
-              {/* Floating crisp white card mimicking modern Malagasy card style */}
-              <div className="bg-white text-slate-900 overflow-hidden">
-                <div className="p-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 font-bold text-slate-900">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Réseau Madagascar</span>
-                    </div>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full w-3/4 bg-gradient-to-r from-orange-500 to-emerald-500 rounded-full" />
-                  </div>
+              {/* Clean caption bar under the hero photo */}
+              <div className="bg-white text-slate-900 px-4 py-3 flex items-center justify-between gap-2 text-xs border-t border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <ShieldCheck className="w-4 h-4 text-orange-600 shrink-0" />
+                  <span>Réseau Madagascar</span>
                 </div>
-                <div className="bg-gradient-to-r from-orange-600 via-rose-500 to-emerald-600 px-4 py-2 text-[11px] font-bold text-white flex items-center justify-between">
-                  <span>Plateforme active en temps réel</span>
-                  <span>100 % net entre les parties</span>
-                </div>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  100 % net entre les parties
+                </span>
               </div>
             </div>
           </div>

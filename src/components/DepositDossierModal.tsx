@@ -2307,8 +2307,8 @@ Ma demande : ${trimmed}`
                           : loyalty.isDiamond
                           ? `Membre Prestigieux Officiel (-45 %) · Prochain dossier offert dans ${loyalty.dossiersUntilFreePublication} publication(s)`
                           : loyalty.discountPct > 0
-                          ? `Réduction fidélité -${loyalty.discountPct} % appliquée`
-                          : 'Compte Fidélité actif (Palier Bronze à 50 EXP)'}
+                          ? `Réduction fidélité -${loyalty.discountPct} % appliquée (${loyalty.label})`
+                          : 'Compte Fidélité actif (Palier Bronze -10 %)'}
                       </span>
                     </span>
                     <span className="font-bold text-amber-300 shrink-0">

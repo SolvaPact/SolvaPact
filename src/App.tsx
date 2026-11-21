@@ -37,6 +37,7 @@ import { PlatformDiscoveryView } from './components/PlatformDiscoveryView';
 import { LoyaltyModal } from './components/LoyaltyModal';
 import { HelpView } from './components/HelpView';
 import { MarketTrustSection } from './components/MarketTrustSection';
+import { MadagascarActionHub } from './components/MadagascarActionHub';
 import { SatisfactionSurveyModal } from './components/SatisfactionSurveyModal';
 import { DailyReportModal } from './components/DailyReportModal';
 import { InvestorContactView } from './components/InvestorContactView';
@@ -426,10 +427,11 @@ export default function App() {
   const handleDeleteDossier = async (dossierId: string) => {
     try {
       await deleteDossierInFirestore(dossierId);
+      setDossiers((prev) => prev.filter((d) => d.id !== dossierId));
+      setSelectedDossierForDetail((prev) => (prev && prev.id === dossierId ? null : prev));
     } catch (err) {
       console.error('Error deleting dossier from Firestore:', err);
     }
-    setDossiers((prev) => prev.filter((d) => d.id !== dossierId));
   };
 
   const handleClearAllTests = async () => {
@@ -626,7 +628,7 @@ export default function App() {
             {activeTab === 'explorer' && (
               <HeroBanner
                 onExplore={() => {
-                  const el = document.getElementById('catalogue-section');
+                  const el = document.getElementById('market-lanes-section');
                   el?.scrollIntoView({ behavior: 'smooth' });
                 }}
                 onDeposit={() => handleOpenDepositWithType('investissement')}
@@ -642,22 +644,36 @@ export default function App() {
                 onSelectDossier={(d) => setSelectedDossierForDetail(d)}
                 onStartNegotiation={(d) => handleOpenContact(d)}
                 onOpenDepositWithType={(type) => handleOpenDepositWithType(type)}
+                canDelete={canMarkDossierAccepted}
+                onDeleteDossier={handleDeleteDossier}
               />
             )}
 
-            <section id="catalogue-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {activeTab === 'explorer' && (
+              <MadagascarActionHub
+                onOpenSimulateur={() => setActiveTab('simulateur')}
+                onOpenContactInvestors={() => setActiveTab('prendre_contact')}
+                onOpenHelp={() => setActiveTab('aide')}
+                onOpenDepositWithAmount={(amountEuro) =>
+                  handleOpenDepositWithType('investissement', amountEuro)
+                }
+              />
+            )}
+
+            {(activeTab === 'investissement' || activeTab === 'autre') && (
+              <section id="catalogue-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
               <div className="mb-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-xs">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-orange-600 block mb-1">
-                      {activeTab === 'investissement' && "Onglet 1 · Demandes d'investissement & Projets Madagascar"}
-                      {activeTab === 'autre' && 'Onglet 2 · Autres sujets & Besoins divers'}
-                      {activeTab === 'explorer' && 'SolvaPact Madagascar · Tous les dossiers classés'}
+                      {activeTab === 'investissement'
+                        ? "Onglet 1 · Demandes d'investissement & Projets Madagascar"
+                        : 'Onglet 2 · Autres sujets & Besoins divers'}
                     </span>
                     <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                      {activeTab === 'investissement' && "Dossiers d'investissement & financements"}
-                      {activeTab === 'autre' && "Dossiers d'autres sujets & accompagnements"}
-                      {activeTab === 'explorer' && "Explorez l'ensemble des dossiers disponibles"}
+                      {activeTab === 'investissement'
+                        ? "Dossiers d'investissement & financements"
+                        : "Dossiers d'autres sujets & accompagnements"}
                     </h2>
                     <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
                       Préparation du dossier gratuite · Publication en ligne à{' '}
@@ -722,11 +738,7 @@ export default function App() {
 
                   <button
                     onClick={() => setActiveTab('explorer')}
-                    className={`px-3 py-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'explorer'
-                        ? 'bg-slate-900 text-white font-semibold'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
+                    className="px-3 py-2 text-xs font-medium rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-800"
                   >
                     Tous ({dossiers.length})
                   </button>
@@ -893,7 +905,8 @@ export default function App() {
                   </button>
                 </div>
               )}
-            </section>
+              </section>
+            )}
           </div>
         )}
 
@@ -1090,6 +1103,10 @@ export default function App() {
           selectedDossierForDetail ? canMarkDossierAccepted(selectedDossierForDetail) : false
         }
         onMarkAccepted={handleMarkDossierAccepted}
+        canDelete={
+          selectedDossierForDetail ? canMarkDossierAccepted(selectedDossierForDetail) : false
+        }
+        onDelete={handleDeleteDossier}
       />
 
       <ContactCreatorModal

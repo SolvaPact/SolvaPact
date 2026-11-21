@@ -127,7 +127,7 @@ export async function createOrSyncUserProfile(
     role: profileData.role === 'investisseur' ? 'investisseur' : 'demandeur',
     city: clampStr(profileData.city, 80, 'Antananarivo'),
     loyaltyActive: isOwner ? true : false,
-    loyaltyExp: isOwner ? 500 : 0,
+    loyaltyExp: isOwner ? 120 : 0,
     diamondPublicationsCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -229,15 +229,13 @@ export async function syncInvestorDirectoryEntry(user: User): Promise<void> {
   if (!contactEmail || !contactEmail.includes('@')) return;
 
   const loyaltyTier: LoyaltyTier = user.loyaltyActive
-    ? (user.loyaltyExp || 0) >= 500
+    ? (user.loyaltyExp || 0) >= 120
       ? 'diamond'
-      : (user.loyaltyExp || 0) >= 300
+      : (user.loyaltyExp || 0) >= 60
       ? 'gold'
-      : (user.loyaltyExp || 0) >= 150
+      : (user.loyaltyExp || 0) >= 30
       ? 'silver'
-      : (user.loyaltyExp || 0) >= 50
-      ? 'bronze'
-      : 'standard'
+      : 'bronze'
     : 'none';
 
   const consentDate = clampStr(

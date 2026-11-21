@@ -46,7 +46,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
   if (!isOpen) return null;
 
   const loyalty = getLoyaltyStatus(currentUser);
-  const progressPct = Math.min(100, Math.round((loyalty.exp / 500) * 100));
+  const progressPct = Math.min(100, Math.round((loyalty.exp / 120) * 100));
   const accountColorDark = getLoyaltyNameColorClass(loyalty.tier, true);
 
   const modalBorderClass =
@@ -196,7 +196,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                     : 'Statut actuel : Compte Standard (Non activé)'}
                 </span>
                 <span className="font-mono font-bold text-cyan-300 shrink-0">
-                  {loyalty.exp} / 500 EXP
+                  {loyalty.exp} / 120 EXP
                 </span>
               </div>
 
@@ -207,19 +207,18 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px] text-blue-200/75 font-medium">
-                <span>0 EXP</span>
-                <span className={loyalty.exp >= 50 ? 'text-orange-300 font-bold' : ''}>
-                  50 · Bronze (-10 %)
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] text-blue-200/75 font-medium">
+                <span className={loyalty.active ? 'text-orange-300 font-bold' : ''}>
+                  0 · Bronze (Base · -10 %)
                 </span>
-                <span className={loyalty.exp >= 150 ? 'text-slate-100 font-bold' : ''}>
-                  150 · Silver (-17 %)
+                <span className={loyalty.exp >= 30 ? 'text-slate-100 font-bold' : ''}>
+                  30 · Silver (3 dossiers · -17 %)
                 </span>
-                <span className={loyalty.exp >= 300 ? 'text-amber-300 font-bold' : ''}>
-                  300 · Gold (-23 %)
+                <span className={loyalty.exp >= 60 ? 'text-amber-300 font-bold' : ''}>
+                  60 · Gold (6 dossiers · -23 %)
                 </span>
-                <span className={loyalty.exp >= 500 ? 'text-cyan-300 font-extrabold sm:text-right' : 'sm:text-right'}>
-                  500 · Diamond (-45 %)
+                <span className={loyalty.exp >= 120 ? 'text-cyan-300 font-extrabold sm:text-right' : 'sm:text-right'}>
+                  120 · Diamond (12 dossiers · -45 %)
                 </span>
               </div>
             </div>
@@ -235,7 +234,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-orange-300">Bronze</span>
-                  <span className="font-mono text-[11px] font-bold text-orange-200">50 EXP</span>
+                  <span className="font-mono text-[11px] font-bold text-orange-200">0 EXP · Base</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400 block leading-none">
@@ -244,7 +243,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
                   <p className="font-bold text-orange-300 mt-0.5">Nom de compte Bronze</p>
                 </div>
                 <p className="text-[11px] text-blue-100/80">
-                  -10 % sur chaque publication ({formatEuro(26.99)} au lieu de {formatEuro(BASE_PUBLICATION_PRICE)}).
+                  Inclus dès l'activation : -10 % sur chaque publication ({formatEuro(26.99)} au lieu de {formatEuro(BASE_PUBLICATION_PRICE)}).
                 </p>
               </div>
 
@@ -257,7 +256,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-200">Silver</span>
-                  <span className="font-mono text-[11px] font-bold text-slate-200">150 EXP</span>
+                  <span className="font-mono text-[11px] font-bold text-slate-200">30 EXP · 3 dossiers</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 block leading-none">
@@ -279,7 +278,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-amber-300">Gold</span>
-                  <span className="font-mono text-[11px] font-bold text-amber-200">300 EXP</span>
+                  <span className="font-mono text-[11px] font-bold text-amber-200">60 EXP · 6 dossiers</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block leading-none">
@@ -301,7 +300,7 @@ export const LoyaltyModal: React.FC<LoyaltyModalProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-extrabold text-cyan-300">Diamond</span>
-                  <span className="font-mono text-[11px] font-extrabold text-cyan-200">500 EXP</span>
+                  <span className="font-mono text-[11px] font-extrabold text-cyan-200">120 EXP · 12 dossiers</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300 block leading-none">

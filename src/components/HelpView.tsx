@@ -58,7 +58,7 @@ const STARTER_QUESTIONS = [
   'Aide-moi à rédiger et structurer mon dossier',
   'Quel onglet choisir pour ma situation ?',
   'Combien coûte la publication d’un dossier ?',
-  'Comment fonctionne le Compte Fidélité (80 €) ?',
+  'Comment fonctionne le Compte Fidélité (39,99 €) ?',
   'Comment fonctionnent les paiements et accords sur SolvaPact ?',
 ];
 
@@ -251,7 +251,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
 
     const subjectMap: Record<string, string> = {
       dossier: 'Aide concernant la préparation ou publication de dossier (29,99 €)',
-      fidelite: 'Question sur le Compte Fidélité (80 € / EXP)',
+      fidelite: 'Question sur le Compte Fidélité (39,99 € / EXP)',
       nego: 'Assistance sur une négociation ou un protocole sous seing privé',
       technique: 'Signalement technique sur la plateforme',
       autre: 'Demande transmise au responsable SolvaPact',
@@ -734,7 +734,7 @@ export const HelpView: React.FC<HelpViewProps> = ({
               Comment fonctionne le Compte Fidélité à {formatEuro(LOYALTY_ACTIVATION_PRICE)} ?
             </h4>
             <p className="text-slate-600 leading-relaxed text-xs">
-              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 50 EXP = Bronze (Membre Vérifié, -10 %), 150 EXP = Silver (Membre Fidèle, -17 %), 300 EXP = Gold (Membre Précieux, -23 %), 500 EXP = <strong>Diamond (Membre Prestigieux Officiel, -45 % soit 16,49 €, 1 dossier offert tous les 5 dossiers, mise en avant et support prioritaires)</strong>.
+              Pour un paiement unique de {formatEuro(LOYALTY_ACTIVATION_PRICE)}, chaque dossier publié vous rapporte <strong>+{EXP_PER_DOSSIER} EXP</strong> : 0 EXP dès l&apos;activation = Bronze (Membre Vérifié, -10 %), 30 EXP / 3 dossiers = Silver (Membre Fidèle, -17 %), 60 EXP / 6 dossiers = Gold (Membre Précieux, -23 %), 120 EXP / 12 dossiers = <strong>Diamond (Membre Prestigieux Officiel, -45 % soit 16,49 €, 1 dossier offert tous les 5 dossiers, mise en avant et support prioritaires)</strong>.
             </p>
           </div>
 

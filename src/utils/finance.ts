@@ -1,7 +1,7 @@
 import { LoyaltyTier, User } from '../types';
 
 export const BASE_PUBLICATION_PRICE = 29.99;
-export const LOYALTY_ACTIVATION_PRICE = 80;
+export const LOYALTY_ACTIVATION_PRICE = 39.99;
 export const EXP_PER_DOSSIER = 10;
 
 const OWNER_GOLD_EMAILS = ['solvapact.vercel.app@gmail.com', 'hugolaumonier@gmail.com'];
@@ -26,7 +26,7 @@ export function applyOwnerGoldStatus(user: User): User {
     return {
       ...user,
       loyaltyActive: true,
-      loyaltyExp: Math.max(500, user.loyaltyExp || 0),
+      loyaltyExp: Math.max(120, user.loyaltyExp || 0),
       loyaltyActivatedAt: user.loyaltyActivatedAt || new Date().toLocaleDateString('fr-FR'),
     };
   }
@@ -64,9 +64,9 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
       badgeTitle: '',
       discountPct: 0,
       publicationPrice: BASE_PUBLICATION_PRICE,
-      nextTierLabel: 'Compte Fidélité (80 €)',
-      nextTierExp: 50,
-      expToNextTier: 50,
+      nextTierLabel: 'Compte Fidélité (39,99 € · Bronze inclus)',
+      nextTierExp: 0,
+      expToNextTier: 0,
       isDiamond: false,
       diamondPublicationsCount: 0,
       isFreePublicationNow: false,
@@ -74,41 +74,34 @@ export function getLoyaltyStatus(user?: User | null): LoyaltyStatus {
     };
   }
 
-  let tier: LoyaltyTier = 'standard';
-  let label = 'Actif';
-  let badgeTitle = '';
-  let discountPct = 0;
-  let nextTierLabel: string | null = 'Bronze (-10 %)';
-  let nextTierExp: number | null = 50;
+  let tier: LoyaltyTier = 'bronze';
+  let label = 'Bronze';
+  let badgeTitle = 'Membre Vérifié';
+  let discountPct = 10;
+  let nextTierLabel: string | null = 'Silver (-17 %)';
+  let nextTierExp: number | null = 30;
 
-  if (exp >= 500) {
+  if (exp >= 120) {
     tier = 'diamond';
     label = 'Diamond';
     badgeTitle = 'Membre Prestigieux Officiel';
     discountPct = 45;
     nextTierLabel = null;
     nextTierExp = null;
-  } else if (exp >= 300) {
+  } else if (exp >= 60) {
     tier = 'gold';
     label = 'Gold';
     badgeTitle = 'Membre Précieux';
     discountPct = 23;
     nextTierLabel = 'Diamond (-45 % + 1 dossier offert / 5)';
-    nextTierExp = 500;
-  } else if (exp >= 150) {
+    nextTierExp = 120;
+  } else if (exp >= 30) {
     tier = 'silver';
     label = 'Silver';
     badgeTitle = 'Membre Fidèle';
     discountPct = 17;
     nextTierLabel = 'Gold (-23 %)';
-    nextTierExp = 300;
-  } else if (exp >= 50) {
-    tier = 'bronze';
-    label = 'Bronze';
-    badgeTitle = 'Membre Vérifié';
-    discountPct = 10;
-    nextTierLabel = 'Silver (-17 %)';
-    nextTierExp = 150;
+    nextTierExp = 60;
   }
 
   const isDiamond = tier === 'diamond';

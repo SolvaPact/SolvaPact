@@ -7,6 +7,7 @@ import {
   MessageSquare,
   PiggyBank,
   PlusCircle,
+  Trash2,
 } from 'lucide-react';
 
 interface MarketTrustSectionProps {
@@ -14,6 +15,8 @@ interface MarketTrustSectionProps {
   onSelectDossier: (dossier: Dossier) => void;
   onStartNegotiation: (dossier: Dossier) => void;
   onOpenDepositWithType: (type: DossierType) => void;
+  canDelete?: (dossier: Dossier) => boolean;
+  onDeleteDossier?: (dossierId: string) => void;
 }
 
 interface ColumnConfig {
@@ -58,9 +61,12 @@ export const MarketTrustSection: React.FC<MarketTrustSectionProps> = ({
   onSelectDossier,
   onStartNegotiation,
   onOpenDepositWithType,
+  canDelete,
+  onDeleteDossier,
 }) => {
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
   return (
-    <section className="bg-slate-50 border-b border-slate-200 py-10 lg:py-12">
+    <section id="market-lanes-section" className="bg-slate-50 border-b border-slate-200 py-10 lg:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* 2 Scrollable Dossier Lanes: Investissement | Autre */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
@@ -148,6 +154,38 @@ export const MarketTrustSection: React.FC<MarketTrustSectionProps> = ({
                                     : 'Ouvert'}
                                 </span>
                                 <span className="font-semibold text-slate-700">{dossier.applicant.city}</span>
+                                {onDeleteDossier && canDelete?.(dossier) && (
+                                  confirmDeleteId === dossier.id ? (
+                                    <span className="flex items-center gap-1 ml-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          onDeleteDossier(dossier.id);
+                                          setConfirmDeleteId(null);
+                                        }}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded cursor-pointer"
+                                      >
+                                        Confirmer
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteId(null)}
+                                        className="px-1 py-0.5 text-[10px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
+                                      >
+                                        Annuler
+                                      </button>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDeleteId(dossier.id)}
+                                      title="Supprimer ce dossier"
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )
+                                )}
                               </div>
                             </div>
 
